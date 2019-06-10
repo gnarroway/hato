@@ -17,7 +17,8 @@
     (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
     (java.security KeyStore)
     (java.time Duration)
-    (java.util.function Function)))
+    (java.util.function Function)
+    (java.io File)))
 
 
 (defn- ->BodyHandler
@@ -39,7 +40,6 @@
       :stream (HttpResponse$BodyHandlers/ofInputStream)
       :discarding (HttpResponse$BodyHandlers/discarding)
 
-      ; TODO default to stream like aleph?
       (HttpResponse$BodyHandlers/ofByteArray))))
 
 (defn- ->BodyPublisher
@@ -57,6 +57,7 @@
     (cond
       (nil? body) (HttpRequest$BodyPublishers/noBody)
       (bytes? body) (HttpRequest$BodyPublishers/ofByteArray body)
+      (instance? File body) (HttpRequest$BodyPublishers/ofFile (.toPath body))
       (and (= :json content-type)
            (coll? body)) (HttpRequest$BodyPublishers/ofString (middleware/json-encode body))
       :else (HttpRequest$BodyPublishers/ofString body))))

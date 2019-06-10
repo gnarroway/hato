@@ -72,7 +72,6 @@
   "Resolve and apply Transit's JSON/MessagePack encoding."
   [out type & [opts]]
   {:pre [transit-enabled?]}
-  (println "WOW" out type opts)
   (let [output (ByteArrayOutputStream.)
         writer (ns-resolve 'cognitect.transit 'writer)
         write (ns-resolve 'cognitect.transit 'write)]
@@ -240,12 +239,15 @@
 (defmethod coerce-response-body :transit+msgpack [req resp]
   (coerce-transit-body req resp :msgpack))
 
-(defmethod coerce-response-body :string
+(defmethod coerce-response-body :byte-array [_ resp]
+  resp)
+
+(defmethod coerce-response-body :stream [_ resp]
+  resp)
+
+(defmethod coerce-response-body :default
   [_ {:keys [body] :as resp}]
   (assoc resp :body (String. body "UTF-8")))
-
-(defmethod coerce-response-body :default [_ resp]
-  resp)
 
 (defn- output-coercion-response
   [req {:keys [body] :as resp}]
@@ -485,7 +487,7 @@
                      :form-params  form-params
                      :transit-opts transit-opts
                      :transit-type type})))
-  (do (println "WOO" (transit-encode form-params type transit-opts)) (transit-encode form-params type transit-opts)))
+  (transit-encode form-params type transit-opts))
 
 (defmethod coerce-form-params :application/transit+json [req]
   (coerce-transit-form-params :json req))

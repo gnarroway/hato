@@ -1,10 +1,11 @@
 (ns hato.middleware-test
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
-            [hato.middleware :refer :all])
+            [hato.middleware :refer :all]
+            [clojure.java.io :as io])
   (:import (java.util.zip
              GZIPOutputStream)
-           (java.io ByteArrayOutputStream)))
+           (java.io ByteArrayOutputStream ByteArrayInputStream InputStream)))
 
 (deftest test-wrap-request-timing
   (let [r ((wrap-request-timing (fn [x] (Thread/sleep 1) x)) {})]
@@ -152,12 +153,12 @@
   (testing "string coercions"
     (is (= "{:a 1}" (-> ((wrap-output-coercion (constantly {:status 200 :body (.getBytes "{:a 1}")})) {:as :string}) :body))))
 
-  (testing "generic coercions pass through body."
-    ;; These are generally performed by the Java client.
-    ;; We compare seq of the body since (mutable) byte-array needs to be compared by value.
-    (are [body as] (= (seq body) (-> ((wrap-output-coercion (constantly {:body body})) {:as as}) :body seq))
-                   "s" :something-random
-                   (.getBytes "s") :byte-array)))
+  (testing "byte-array coercions"
+    (let [bs (.getBytes "{:a 1}")
+          iss (ByteArrayInputStream. bs)]
+      (is (= bs (-> ((wrap-output-coercion (constantly {:status 200 :body bs})) {:as :byte-array}) :body)))
+      (is (= iss (-> ((wrap-output-coercion (constantly {:status 200 :body iss})) {:as :stream}) :body))))))
+
 
 (deftest test-wrap-exceptions
   (testing "for unexceptional status codes"

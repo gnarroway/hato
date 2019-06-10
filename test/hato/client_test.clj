@@ -25,8 +25,7 @@
 (deftest ^:Integration test-coercions
   (testing "as default"
     (let [r (get "https://httpbin.org/get" {})]
-      (is (instance? (Class/forName "[B") (:body r)))
-      (is (string? (String. (:body r))))))
+      (is (string?  (:body r)))))
 
   (testing "as byte array"
     (let [r (get "https://httpbin.org/get" {:as :byte-array})]

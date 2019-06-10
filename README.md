@@ -8,11 +8,13 @@ In general, it will feel familiar to users of ring-style http clients like [clj-
 The API is designed to be idiomatic and to make common tasks convenient, whilst
 still allowing the underlying HttpClient to be configured via native Java objects.
 
+## Status
+
+hato is under active development. Once it has stabilized to a reasonable degree, it will be published to clojars.
 
 ## Installation
 
-`hato` requires JDK 11 or above. If you are running an older Java, please look at [clj-http](https://github.com/dakrone/clj-http).
-
+hato requires JDK 11 or above. If you are running an older Java, please look at [clj-http](https://github.com/dakrone/clj-http).
 
 For Leinengen, add this to your project.clj
 
@@ -108,13 +110,14 @@ request and returns a response. Convenience wrappers are provided for the http v
   
 `body` the body of the request. This should be a string, byte array, or input stream. Note that input
   coercion is not provided so e.g. sending a json body will require transforming a clojure data structure
-  into a json string via cheshire or other means.
+  into a json string via [cheshire](https://github.com/dakrone/cheshire) or other means.
   
 `as` Return response body in a certain format. Valid options are: a `java.net.http.HttpRequest$BodyHandler`, 
-  `:byte-array` (default), `:stream`, `:discarding`, `:string`.
+  `:byte-array`, `:stream`, `:discarding`, `:string` (default).
   Further options are available to coerce response body from a certain format: `:json`, `:json-string-keys`,
   `:json-strict`, `:json-strict-string-keys`, `:clojure`, `:transit+json`, `:transit+msgpack`. json and transit
-  coercion require optional dependencies `cheshire` and `com.cognitect/transit-clj` to be installed, respectively.
+  coercion require optional dependencies [cheshire](https://github.com/dakrone/cheshire) and
+  [com.cognitect/transit-clj](https://github.com/cognitect/transit-clj) to be installed, respectively.
 
 `coerce` Determine which status codes to coerce response bodies. `:unexceptional` (default), `:always`, `:exceptional`. 
   This presently only has an effect for json coercions.
@@ -168,15 +171,21 @@ this is not the same as the full `url`.
 
 `request-method` Same as `method`. Exists to be like ring.
 
+
+## Usage examples
+
 ### Async requests
 
-By default, `hato` performs synchronous requests and directly returns a response map.
+By default, hato performs synchronous requests and directly returns a response map.
 
 By providing `async?` option to the request, the request will be performed asynchronously, returning
-a `CompletableFuture` of the response map. This can be wrapped in e.g. manifold, to give you promise chains etc.
+a [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) 
+of the response map. This can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold), 
+to give you promise chains etc.
 
 Alternatively, callbacks can be used by passing in `respond` and `raise` functions, in which case
-the `CompletableFuture` returned can be used to indicate when processing has completed.
+the [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) 
+returned can be used to indicate when processing has completed.
 
 ```clojure
 ; A standard synchronous request
@@ -188,13 +197,13 @@ the `CompletableFuture` returned can be used to indicate when processing has com
 ; #object[jdk.internal.net.http.common.MinimalFuture...
 
 ; Deref it to get the value87
-(-> @(get "https://httpbin.org/get" {:as :json :async? true})
+(-> @(hc/get "https://httpbin.org/get" {:as :json :async? true})
     :body)
 ; =>
 ; { ...some json body }
 
 ; Pass in a callback
-(get "https://httpbin.org/get"
+(hc/get "https://httpbin.org/get"
        { :async? true } 
        (fn [resp] (println "Got status" (:status resp))) 
        identity)
@@ -207,6 +216,45 @@ the `CompletableFuture` returned can be used to indicate when processing has com
 ; true
 ```
 
+### Output coercion
+
+hato performs output coercion of the response body, returning a string by default.
+
+```clojure
+; Returns a string response
+(hc/get "http://moo.com" {})
+
+; Returns a byte array
+(hc/get "http://moo.com" {:as :byte-array})
+
+; Returns an InputStream
+(hc/get "http://moo.com" {:as :stream})
+
+; Coerces clojure strings
+(hc/get "http://moo.com" {:as :clojure})
+
+; Coerces transit. Requires optional dependency com.cognitect/transit-clj.
+(hc/get "http://moo.com" {:as :transit+json})
+(hc/get "http://moo.com" {:as :transit+msgpack})
+
+; Coerces JSON strings into clojure data structure
+; Requires optional dependency cheshire
+(hc/get "http://moo.com" {:as :json})
+(hc/get "http://moo.com" {:as :json-strict})
+(hc/get "http://moo.com" {:as :json-string-keys})
+(hc/get "http://moo.com" {:as :json-strict-string-keys})
+
+; Coerce responses with exceptional status codes
+(hc/get "http://moo.com" {:as :json :coerce :always})
+```
+
+By default, hato only coerces JSON responses for unexceptional statuses. Control this with the `:coerce` option:
+
+```clojure
+:unexceptional ; default - only coerce response bodies for unexceptional status codes
+:exceptional ; only coerce for exceptional status codes
+:always ; coerce for any status code
+```
 
 ## License
 
