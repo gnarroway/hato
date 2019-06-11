@@ -12,8 +12,8 @@
       HttpResponse$BodyHandler
       HttpResponse$BodyHandlers
       HttpRequest$BodyPublisher
-      HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest)
-    (java.net CookiePolicy CookieManager URI)
+      HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest HttpClient$Builder)
+    (java.net CookiePolicy CookieManager URI ProxySelector)
     (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
     (java.security KeyStore)
     (java.time Duration)
@@ -61,6 +61,19 @@
       (and (= :json content-type)
            (coll? body)) (HttpRequest$BodyPublishers/ofString (middleware/json-encode body))
       :else (HttpRequest$BodyPublishers/ofString body))))
+
+(defn- ->ProxySelector
+  "Returns a ProxySelector.
+
+  `v` should be :no-proxy, to always return Proxy.NO_PROXY, or an instance of a ProxySelector.
+  If not, returns the system default ProxySelector silently.
+
+  https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/ProxySelector.html"
+  [v]
+  (cond
+    (instance? ProxySelector v) v
+    (= :no-proxy v) (HttpClient$Builder/NO_PROXY)
+    :else (ProxySelector/getDefault)))
 
 (defn- ->Redirect
   "Returns a HttpClient$Redirect.
@@ -119,14 +132,20 @@
 (defn cookie-manager
   "Creates a CookieManager.
 
-  `cookie-policy` maps to a CookiePolicy, accepting :all, :none, :original-server (default).
+  `cookie-policy` maps to a CookiePolicy, accepting :all, :none, :original-server (default), or a CookiePolicy implementation.
+
+  Invalid values will result in a CookieManager with the default policy (original server).
+
   https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/CookieManager.html"
   [cookie-policy]
   (when cookie-policy
     (let [cm (CookieManager.)]
-      (if-let [cp (cookie-policies cookie-policy)]
-        (doto cm (.setCookiePolicy cp))
-        cm))))
+      (if (instance? CookiePolicy cookie-policy)
+        (doto cm (.setCookiePolicy cookie-policy))
+
+        (if-let [cp (cookie-policies cookie-policy)]
+          (doto cm (.setCookiePolicy cp))
+          cm)))))
 
 (defn ssl-context
   "Creates an SSLContext.
@@ -167,7 +186,7 @@
   `connect-timeout` in milliseconds
   `follow-redirects` :never (default), :normal, :always
   `priority` an integer between 1 and 256 inclusive for HTTP/2 requests
-  `proxy` a java.net.ProxySelector
+  `proxy` a java.net.ProxySelector or :no-proxy
   `ssl-context` an javax.net.ssl.SSLContext
   `ssl-parameters a javax.net.ssl.SSLParameters
   `version` :http-1.1 :http-2"
@@ -200,7 +219,7 @@
       (.priority builder priority))
 
     (when proxy
-      (.proxy builder proxy))
+      (.proxy builder (->ProxySelector proxy)))
 
     (when ssl-context
       (.sslContext builder ssl-context))

@@ -63,7 +63,15 @@ Generally, you want to make a reusable client first. This can be done with `buil
 
 `cookie-handler` a java.net.CookieHandler
 
-`cookie-policy` :none, :all, :original-server. cookie-handler takes precedence if specified
+`cookie-policy` Can be used to construct a java.net.CookieManager (a type of CookieHandler). 
+  However, the `cookie-handler` option will take precedence if it is set. 
+  Furthermore, any invalid option will still create a CookieManager
+  with the default policy (original-server) unaffected. Valid options:
+
+ - `:none` Accepts no cookies
+ - `:all`  Accepts all cookies
+ - `:original-server` (default) Accepts cookies from original server
+ - An implementation of [`java.net.CookiePolicy`](https://docs.oracle.com/javase/7/docs/api/java/net/CookiePolicy.html).
 
 `connect-timeout` in milliseconds
 
@@ -71,7 +79,13 @@ Generally, you want to make a reusable client first. This can be done with `buil
 
 `priority` an integer between 1 and 256 inclusive for HTTP/2 requests
 
-`proxy` a java.net.ProxySelector
+`proxy` Sets a proxy selector. If not set, uses the default system-wide ProxySelector,
+  which cane be configured by JVM opts such as `-Dhttp.proxyHost=somehost` and `-Dhttp.proxyPort=80` 
+  (see [all options](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/doc-files/net-properties.html#Proxies)).
+  Also accepts:
+  
+  - `:no-proxy` to explicitly disable the default behavior, implying a direct connection; or
+  - a java.net.ProxySelector
 
 `ssl-context` an javax.net.ssl.SSLContext
 

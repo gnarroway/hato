@@ -2,7 +2,10 @@
   (:refer-clojure :exclude [get])
   (:require [clojure.test :refer :all]
             [hato.client :refer :all])
-  (:import (java.io InputStream)))
+  (:import (java.io InputStream)
+           (java.net ProxySelector CookieHandler)
+           (java.net.http HttpClient$Redirect HttpClient$Version HttpClient)
+           (java.time Duration)))
 
 
 (deftest ^:Integration test-basic-response
@@ -25,7 +28,7 @@
 (deftest ^:Integration test-coercions
   (testing "as default"
     (let [r (get "https://httpbin.org/get" {})]
-      (is (string?  (:body r)))))
+      (is (string? (:body r)))))
 
   (testing "as byte array"
     (let [r (get "https://httpbin.org/get" {:as :byte-array})]
@@ -120,3 +123,50 @@
       (is (= 200 (:status r)))
       (is (instance? InputStream (:body r))))))
 
+(deftest test-build-http-client
+  (testing "connect-timeout"
+    (is (= (.isEmpty (.connectTimeout (build-http-client {})))) "not set by default")
+    (is (= 5 (-> (build-http-client {:connect-timeout 5}) (.connectTimeout) ^Duration (.get) (.toMillis))))
+    (is (thrown? Exception (build-http-client {:connect-timeout :not-a-number}))))
+
+  (testing "cookie-manager and cookie-policy"
+    (is (= (.isEmpty (.cookieHandler (build-http-client {})))) "not set by default")
+    (are [x] (instance? CookieHandler (-> ^HttpClient (build-http-client {:cookie-policy x}) (.cookieHandler) (.get)))
+             :none
+             :all
+             :original-server
+             :any-random-thing  ; Invalid values are ignored, so the default :original-server will be in effect
+             )
+
+    (let [cm (cookie-manager :none)]
+      (is (= cm (-> (build-http-client {:cookie-handler cm :cookie-policy :all}) (.cookieHandler) (.get)))
+          ":cookie-handler takes precedence over :cookie-policy")))
+
+  (testing "follow-redirects"
+    (is (= HttpClient$Redirect/NEVER (.followRedirects (build-http-client {}))) "NEVER by default")
+    (are [expected option] (= expected (.followRedirects (build-http-client {:follow-redirects option})))
+                           HttpClient$Redirect/ALWAYS :always
+                           HttpClient$Redirect/NEVER :never
+                           HttpClient$Redirect/NORMAL :normal)
+    (is (thrown? Exception (build-http-client {:follow-redirects :not-valid-value}))))
+
+  (testing "priority"
+    (is (build-http-client {:priority 1}))
+    (is (build-http-client {:priority 256}))
+    (is (thrown? Exception (build-http-client {:priority :not-a-number})))
+    (are [x] (thrown? Exception (build-http-client {:priority x}))
+             :not-a-number
+             0
+             257))
+
+  (testing "proxy"
+    (is (= (.isEmpty (.proxy (build-http-client {})))) "not set by default")
+    (is (= (.isPresent (.proxy (build-http-client {:proxy :no-proxy})))))
+    (is (= (.isPresent (.proxy (build-http-client {:proxy (ProxySelector/getDefault)}))))))
+
+  (testing "version"
+    (is (= HttpClient$Version/HTTP_2 (.version (build-http-client {}))) "HTTP_2 by default")
+    (are [expected option] (= expected (.version (build-http-client {:version option})))
+                           HttpClient$Version/HTTP_1_1 :http-1.1
+                           HttpClient$Version/HTTP_2 :http-2)
+    (is (thrown? Exception (build-http-client {:version :not-valid-value})))))
