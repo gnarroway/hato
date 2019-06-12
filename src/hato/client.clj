@@ -13,12 +13,22 @@
       HttpResponse$BodyHandlers
       HttpRequest$BodyPublisher
       HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest HttpClient$Builder)
-    (java.net CookiePolicy CookieManager URI ProxySelector)
+    (java.net CookiePolicy CookieManager URI ProxySelector Authenticator PasswordAuthentication)
     (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
     (java.security KeyStore)
     (java.time Duration)
     (java.util.function Function)
     (java.io File)))
+
+(defn- ->Authenticator
+  [v]
+  (if (instance? Authenticator v)
+    v
+    (let [{:keys [user pass]} v]
+      (when (and user pass)
+        (proxy [Authenticator] []
+          (getPasswordAuthentication []
+            (PasswordAuthentication. user (char-array pass))))))))
 
 
 (defn- ->BodyHandler
@@ -180,11 +190,11 @@
   "Creates an HttpClient from an option map.
 
   Options:
-  `authenticator` a java.net.Authenticator
+  `authenticator` a java.net.Authenticator or {:user \"user\" :pass \"pass\"}
   `cookie-handler` a java.net.CookieHandler
   `cookie-policy` :none, :all, :original-server. cookie-handler takes precedence if specified
   `connect-timeout` in milliseconds
-  `follow-redirects` :never (default), :normal, :always
+  `redirect-policy` :never (default), :normal, :always
   `priority` an integer between 1 and 256 inclusive for HTTP/2 requests
   `proxy` a java.net.ProxySelector or :no-proxy
   `ssl-context` an javax.net.ssl.SSLContext
@@ -194,7 +204,7 @@
            cookie-handler
            cookie-policy
            connect-timeout
-           follow-redirects
+           redirect-policy
            priority
            proxy
            ssl-context
@@ -204,7 +214,8 @@
     }]
   (let [builder (HttpClient/newBuilder)]
     (when authenticator
-      (.authenticator builder authenticator))
+      (when-let [a (->Authenticator authenticator)]
+        (.authenticator builder a)))
 
     (when-let [ch (or cookie-handler (cookie-manager cookie-policy))]
       (.cookieHandler builder ch))
@@ -212,8 +223,8 @@
     (when connect-timeout
       (.connectTimeout builder (Duration/ofMillis connect-timeout)))
 
-    (when follow-redirects
-      (.followRedirects builder (->Redirect follow-redirects)))
+    (when redirect-policy
+      (.followRedirects builder (->Redirect redirect-policy)))
 
     (when priority
       (.priority builder priority))

@@ -33,11 +33,11 @@ Require it to get started and make a request:
 (ns my.app
   (:require [hato.client :as hc]))
   
-  (hc/get "https://httpbin.org/get" {:as :json})
+  (hc/get "https://httpbin.org/get" {})
   ; =>
   ; {:request-time 112
   ;  :status 200
-  ;  :body {:url ...}
+  ;  :body "{\"url\" ...}"
   ;  ...}
 ```
 
@@ -59,12 +59,18 @@ Generally, you want to make a reusable client first. This can be done with `buil
 
 #### build-http-client options
 
-`authenticator` a java.net.Authenticator
+`authenticator` Used for non-preemptive basic authentication. In general, 
+  you should just use the `basic-auth` per-request option which performs
+  pre-emptive authentication. This is here to expose the full HttpClient API. Accepts:
 
-`cookie-handler` a java.net.CookieHandler
+ - A map of `{:user "username" :pass "password"}`
+ - a [`java.net.Authenticator`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/Authenticator.html)
 
-`cookie-policy` Can be used to construct a java.net.CookieManager (a type of CookieHandler). 
-  However, the `cookie-handler` option will take precedence if it is set. 
+`cookie-handler` a [`java.net.CookieHandler`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/CookieHandler.html)
+  if you need full control of your cookies. See `cookie-policy` for a more convenient option.
+
+`cookie-policy` Can be used to construct a [`java.net.CookieManager`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/CookieManager.html)
+  (a type of CookieHandler). However, the `cookie-handler` option will take precedence if it is set. 
   Furthermore, any invalid option will still create a CookieManager
   with the default policy (original-server) unaffected. Valid options:
 
@@ -73,11 +79,15 @@ Generally, you want to make a reusable client first. This can be done with `buil
  - `:original-server` (default) Accepts cookies from original server
  - An implementation of [`java.net.CookiePolicy`](https://docs.oracle.com/javase/7/docs/api/java/net/CookiePolicy.html).
 
-`connect-timeout` in milliseconds
+`connect-timeout` Timeout to making a connection, in milliseconds
 
-`follow-redirects` :never (default), :normal, :always
+`redirect-policy` Sets the redirect policy.
 
-`priority` an integer between 1 and 256 inclusive for HTTP/2 requests
+  - :never (default) Never follow redirects.
+  - :normal Always redirect, except from HTTPS URLs to HTTP URLs. 
+  - :always Always redirect
+
+`priority` an integer between 1 and 256 (both inclusive) for HTTP/2 requests
 
 `proxy` Sets a proxy selector. If not set, uses the default system-wide ProxySelector,
   which cane be configured by JVM opts such as `-Dhttp.proxyHost=somehost` and `-Dhttp.proxyPort=80` 
@@ -85,13 +95,15 @@ Generally, you want to make a reusable client first. This can be done with `buil
   Also accepts:
   
   - `:no-proxy` to explicitly disable the default behavior, implying a direct connection; or
-  - a java.net.ProxySelector
+  - a [`java.net.ProxySelector`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/ProxySelector.html)
 
 `ssl-context` an javax.net.ssl.SSLContext
 
 `ssl-parameters` a javax.net.ssl.SSLParameters
 
-`version` :http-1.1 :http-2"
+`version` Sets preferred HTTP protocol version.
+  - `:http-1.1` prefer HTTP/1.1
+  - `:http-2` (default) tries to upgrade to HTTP/2, falling back to HTTP/1.1
 
 ### Making requests
 
@@ -126,12 +138,17 @@ request and returns a response. Convenience wrappers are provided for the http v
   coercion is not provided so e.g. sending a json body will require transforming a clojure data structure
   into a json string via [cheshire](https://github.com/dakrone/cheshire) or other means.
   
-`as` Return response body in a certain format. Valid options are: a `java.net.http.HttpRequest$BodyHandler`, 
-  `:byte-array`, `:stream`, `:discarding`, `:string` (default).
-  Further options are available to coerce response body from a certain format: `:json`, `:json-string-keys`,
-  `:json-strict`, `:json-strict-string-keys`, `:clojure`, `:transit+json`, `:transit+msgpack`. json and transit
+`as` Return response body in a certain format. Valid options:
+
+  - Return an object type: `:string` (default), `:byte-array`, `:stream`, `:discarding`,
+  - Coerce response body from a certain format: `:json`, `:json-string-keys`,
+  `:json-strict`, `:json-strict-string-keys`, `:clojure`, `:transit+json`, `:transit+msgpack`. JSON and transit
   coercion require optional dependencies [cheshire](https://github.com/dakrone/cheshire) and
   [com.cognitect/transit-clj](https://github.com/cognitect/transit-clj) to be installed, respectively.
+  - A [`java.net.http.HttpRequest$BodyHandler`](https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpResponse.BodyHandler.html).
+  Note that decompression is enabled by default but only handled for the options above. A custom BodyHandler
+  may require opting out of compression, or implementing a multimethod specific to the handler. 
+  
 
 `coerce` Determine which status codes to coerce response bodies. `:unexceptional` (default), `:always`, `:exceptional`. 
   This presently only has an effect for json coercions.
@@ -161,9 +178,12 @@ request and returns a response. Convenience wrappers are provided for the http v
 
 `expect-continue` Requests the server to acknowledge the request before sending the body. This is disabled by default. 
 
-`timeout` in milliseconds
+`timeout` Timeout to receiving a response, in milliseconds
 
-`version` :http-1.1 :http-2
+`version` Sets preferred HTTP protocol version per request.
+
+  - `:http-1.1` prefer HTTP/1.1
+  - `:http-2` (default) tries to upgrade to HTTP/2, falling back to HTTP/1.1
 
 ---
 

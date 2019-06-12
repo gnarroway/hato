@@ -3,7 +3,7 @@
   (:require [clojure.test :refer :all]
             [hato.client :refer :all])
   (:import (java.io InputStream)
-           (java.net ProxySelector CookieHandler)
+           (java.net ProxySelector CookieHandler Authenticator)
            (java.net.http HttpClient$Redirect HttpClient$Version HttpClient)
            (java.time Duration)))
 
@@ -49,6 +49,12 @@
       (is (coll? (:body r))))))
 
 (deftest ^:Integration test-auth
+  (testing "authenticator basic auth (non-preemptive)"
+    (let [r (get "https://httpbin.org/basic-auth/user/pass" {:authenticator {:user "user" :pass "pass"}})]
+      (is (= 200 (:status r))))
+
+    (is (thrown? Exception (get "https://httpbin.org/basic-auth/user/pass" {:basic-auth "invalid:pass"}))))
+
   (testing "basic auth"
     (let [r (get "https://httpbin.org/basic-auth/user/pass" {:basic-auth "user:pass"})]
       (is (= 200 (:status r))))
@@ -64,39 +70,39 @@
         (is (= uri (:uri r)))))
 
     (testing "explicitly never"
-      (let [r (get uri {:as :string :follow-redirects :never})]
+      (let [r (get uri {:as :string :redirect-policy :never})]
         (is (= 302 (:status r)))
         (is (= uri (:uri r)))))
 
     (testing "always redirect"
-      (let [r (get uri {:as :string :follow-redirects :always})]
+      (let [r (get uri {:as :string :redirect-policy :always})]
         (is (= 200 (:status r)))
         (is (= redirect-to (:uri r)))))
 
     (testing "normal redirect (same protocol)"
-      (let [r (get uri {:as :string :follow-redirects :normal})]
+      (let [r (get uri {:as :string :redirect-policy :normal})]
         (is (= 200 (:status r)))
         (is (= redirect-to (:uri r)))))
 
     (testing "normal redirect (not same protocol)"
       (let [https-tp-http-uri (format "https://httpbin.org/redirect-to?url=%s" "http://httpbin.org/get")
-            r (get https-tp-http-uri {:as :string :follow-redirects :normal})]
+            r (get https-tp-http-uri {:as :string :redirect-policy :normal})]
         (is (= 302 (:status r)))
         (is (= https-tp-http-uri (:uri r)))))))
 
 (deftest ^:Integration test-cookies
   (testing "no cookie manager"
-    (let [r (get "https://httpbin.org/cookies/set/moo/cow" {:as :json :follow-redirects :always})]
+    (let [r (get "https://httpbin.org/cookies/set/moo/cow" {:as :json :redirect-policy :always})]
       (is (= 200 (:status r)))
       (is (nil? (-> r :body :cookies :moo)))))
 
   (testing "no cookie manager"
-    (let [r (get "https://httpbin.org/cookies/set/moo/cow" {:as :json :follow-redirects :always :cookie-policy :all})]
+    (let [r (get "https://httpbin.org/cookies/set/moo/cow" {:as :json :redirect-policy :always :cookie-policy :all})]
       (is (= 200 (:status r)))
       (is (= "cow" (-> r :body :cookies :moo)))))
 
   (testing "persists over requests"
-    (let [c (build-http-client {:follow-redirects :always :cookie-policy :all})
+    (let [c (build-http-client {:redirect-policy :always :cookie-policy :all})
           _ (get "https://httpbin.org/cookies/set/moo/cow" {:http-client c})
           r (get "https://httpbin.org/cookies" {:as :json :http-client c})]
       (is (= 200 (:status r)))
@@ -124,13 +130,18 @@
       (is (instance? InputStream (:body r))))))
 
 (deftest test-build-http-client
+  (testing "authenticator"
+    (is (.isEmpty (.authenticator (build-http-client {}))) "not set by default")
+    (is (= "user" (-> (build-http-client {:authenticator {:user "user" :pass "pass"}}) (.authenticator) ^Authenticator (.get) (.getPasswordAuthentication) (.getUserName))))
+    (is (.isEmpty (.authenticator (build-http-client {:authenticator :some-invalid-value}))) "ignore invalid input"))
+
   (testing "connect-timeout"
-    (is (= (.isEmpty (.connectTimeout (build-http-client {})))) "not set by default")
+    (is (.isEmpty (.connectTimeout (build-http-client {}))) "not set by default")
     (is (= 5 (-> (build-http-client {:connect-timeout 5}) (.connectTimeout) ^Duration (.get) (.toMillis))))
     (is (thrown? Exception (build-http-client {:connect-timeout :not-a-number}))))
 
   (testing "cookie-manager and cookie-policy"
-    (is (= (.isEmpty (.cookieHandler (build-http-client {})))) "not set by default")
+    (is (.isEmpty (.cookieHandler (build-http-client {}))) "not set by default")
     (are [x] (instance? CookieHandler (-> ^HttpClient (build-http-client {:cookie-policy x}) (.cookieHandler) (.get)))
              :none
              :all
@@ -142,13 +153,13 @@
       (is (= cm (-> (build-http-client {:cookie-handler cm :cookie-policy :all}) (.cookieHandler) (.get)))
           ":cookie-handler takes precedence over :cookie-policy")))
 
-  (testing "follow-redirects"
+  (testing "redirect-policy"
     (is (= HttpClient$Redirect/NEVER (.followRedirects (build-http-client {}))) "NEVER by default")
-    (are [expected option] (= expected (.followRedirects (build-http-client {:follow-redirects option})))
+    (are [expected option] (= expected (.followRedirects (build-http-client {:redirect-policy option})))
                            HttpClient$Redirect/ALWAYS :always
                            HttpClient$Redirect/NEVER :never
                            HttpClient$Redirect/NORMAL :normal)
-    (is (thrown? Exception (build-http-client {:follow-redirects :not-valid-value}))))
+    (is (thrown? Exception (build-http-client {:redirect-policy :not-valid-value}))))
 
   (testing "priority"
     (is (build-http-client {:priority 1}))
@@ -160,9 +171,9 @@
              257))
 
   (testing "proxy"
-    (is (= (.isEmpty (.proxy (build-http-client {})))) "not set by default")
-    (is (= (.isPresent (.proxy (build-http-client {:proxy :no-proxy})))))
-    (is (= (.isPresent (.proxy (build-http-client {:proxy (ProxySelector/getDefault)}))))))
+    (is (.isEmpty (.proxy (build-http-client {}))) "not set by default")
+    (is (.isPresent (.proxy (build-http-client {:proxy :no-proxy}))))
+    (is (.isPresent (.proxy (build-http-client {:proxy (ProxySelector/getDefault)})))))
 
   (testing "version"
     (is (= HttpClient$Version/HTTP_2 (.version (build-http-client {}))) "HTTP_2 by default")
