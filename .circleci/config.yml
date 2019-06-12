@@ -1,0 +1,8 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: clojure/openjdk-11-lein
+    steps:
+      - checkout
+      - run: lein test
