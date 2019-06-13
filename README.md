@@ -1,5 +1,7 @@
 # hato
 
+[![Clojars Project](https://img.shields.io/clojars/v/hato.svg)](https://clojars.org/hato)
+
 [![CircleCI](https://circleci.com/gh/gnarroway/hato.svg?style=svg)](https://circleci.com/gh/gnarroway/hato)
 
 An HTTP client for Clojure, wrapping JDK 11's [HttpClient](https://openjdk.java.net/groups/net/httpclient/intro.html).
