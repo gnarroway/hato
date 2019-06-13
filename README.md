@@ -73,8 +73,8 @@ Generally, you want to make a reusable client first. This can be done with `buil
 
 `cookie-policy` Can be used to construct a [`java.net.CookieManager`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/CookieManager.html)
   (a type of CookieHandler). However, the `cookie-handler` option will take precedence if it is set. 
-  Furthermore, any invalid option will still create a CookieManager
-  with the default policy (original-server) unaffected. Valid options:
+  If an invalid option is provided, a CookieManager with the default policy (original-server) 
+  will be created. Valid options:
 
  - `:none` Accepts no cookies
  - `:all`  Accepts all cookies
