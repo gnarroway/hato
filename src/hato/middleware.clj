@@ -36,7 +36,7 @@
 
 (defn transit-opts-by-type
   "Returns the Transit options by type."
-  [type class-name opts]
+  [type opts]
   {:pre [transit-enabled?]}
   (cond
     (empty? opts)
@@ -44,20 +44,13 @@
     (contains? opts type)
     (clojure.core/get opts type)
     :else
-    (let [class (Class/forName class-name)]
-      ; TODO remove this?
-      (println "Deprecated use of :transit-opts found.")
-      (update-in opts [:handlers]
-                 (fn [handlers]
-                   (->> handlers
-                        (filter #(instance? class (second %)))
-                        (into {})))))))
+    {}))
 
 (def transit-read-opts
-  (partial transit-opts-by-type :decode "com.cognitect.transit.ReadHandler"))
+  (partial transit-opts-by-type :decode))
 
 (def transit-write-opts
-  (partial transit-opts-by-type :encode "com.cognitect.transit.WriteHandler"))
+  (partial transit-opts-by-type :encode))
 
 (defn ^:dynamic parse-transit
   "Resolve and apply Transit's JSON/MessagePack decoding."
@@ -164,7 +157,6 @@
       (false? (opt req :throw-exceptions))
       resp
 
-      ;TODO handle body types
       :else
       (throw (ex-info (str "status: " status) resp)))))
 
@@ -661,10 +653,6 @@
              #(respond (decompression-response req %))
              raise))))
 
-; TODO https://github.com/ring-clojure/ring/blob/master/SPEC
-; TODO body should be inputstream according to ring spec
-; TODO remote-addr
-; TODO ssl-client-cert
 
 (def default-middleware
   "The default list of middleware hato uses for wrapping requests."
@@ -691,9 +679,6 @@
    ;wrap-nested-params TODO
    ;wrap-flatten-nested-params TODO
    wrap-method
-   ;wrap-cookies TODO
-   ;wrap-links TODO
-   ;wrap-unknown-host TODO
    ])
 
 (defn wrap-request

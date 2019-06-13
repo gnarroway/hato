@@ -88,7 +88,11 @@
               :server-port  1234
               :uri          "/some/resource"
               :url          "http://user:pass@host.com:1234/some/resource?a=b"
-              :user-info    "user:pass"} r)))))
+              :user-info    "user:pass"} r))))
+
+  (testing "url encodes query"
+    (let [r ((wrap-url identity) {:url "http://moo.com/some/resource?yo ho<"})]
+      (is (= "yo%20ho%3C" (:query-string r))))))
 
 (defn- gzip
   [bs]

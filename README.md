@@ -1,5 +1,7 @@
 # hato
 
+[![CircleCI](https://circleci.com/gh/gnarroway/hato.svg?style=svg)](https://circleci.com/gh/gnarroway/hato)
+
 An HTTP client for Clojure, wrapping JDK 11's [HttpClient](https://openjdk.java.net/groups/net/httpclient/intro.html).
 
 It supports both HTTP/1.1 and HTTP/2, with synchronous and asynchronous execution models.
@@ -83,21 +85,21 @@ Generally, you want to make a reusable client first. This can be done with `buil
 
 `redirect-policy` Sets the redirect policy.
 
-  - :never (default) Never follow redirects.
-  - :normal Always redirect, except from HTTPS URLs to HTTP URLs. 
-  - :always Always redirect
+  - `:never` (default) Never follow redirects.
+  - `:normal` Always redirect, except from HTTPS URLs to HTTP URLs. 
+  - `:always` Always redirect
 
 `priority` an integer between 1 and 256 (both inclusive) for HTTP/2 requests
 
 `proxy` Sets a proxy selector. If not set, uses the default system-wide ProxySelector,
-  which cane be configured by JVM opts such as `-Dhttp.proxyHost=somehost` and `-Dhttp.proxyPort=80` 
+  which can be configured by Java opts such as `-Dhttp.proxyHost=somehost` and `-Dhttp.proxyPort=80` 
   (see [all options](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/doc-files/net-properties.html#Proxies)).
   Also accepts:
   
   - `:no-proxy` to explicitly disable the default behavior, implying a direct connection; or
   - a [`java.net.ProxySelector`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/ProxySelector.html)
 
-`ssl-context` an javax.net.ssl.SSLContext
+`ssl-context` a javax.net.ssl.SSLContext
 
 `ssl-parameters` a javax.net.ssl.SSLParameters
 
@@ -126,17 +128,17 @@ request and returns a response. Convenience wrappers are provided for the http v
 `url` A full url to the requested resource (e.g. "http://user:pass@moo.com/api?q=1"). For historical reasons,
   `uri` cannot be used in the same manner.
  
-`accept` Sets the `accept` header. a keyword (e.g. `:json`) (for any application/* type) or string (e.g. `"text/html"`) for anything else. 
+`accept` Sets the `accept` header. a keyword (e.g. `:json`, for any application/* type) or string (e.g. `"text/html"`) for anything else. 
   
 `accept-encoding` List of string/keywords (e.g. `[:gzip]`). By default, "gzip, deflate" will be concatenated
   unless `decompress-body?` is false.
 
-`content-type` a keyword :json (for any application/* type) or string (e.g. "text/html") for anything else. 
+`content-type` a keyword (e.g. `:json`, for any application/* type) or string (e.g. "text/html") for anything else. 
   Sets the appropriate header.
   
-`body` the body of the request. This should be a string, byte array, or input stream. Note that input
-  coercion is not provided so e.g. sending a json body will require transforming a clojure data structure
-  into a json string via [cheshire](https://github.com/dakrone/cheshire) or other means.
+`body` the body of the request. This should be a string, byte array, or input stream. Note that clojure data
+  is not automatically coerce to string e.g. sending a json body will require generating
+  a json string via [cheshire](https://github.com/dakrone/cheshire) or other means.
   
 `as` Return response body in a certain format. Valid options:
 
@@ -148,10 +150,17 @@ request and returns a response. Convenience wrappers are provided for the http v
   - A [`java.net.http.HttpRequest$BodyHandler`](https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpResponse.BodyHandler.html).
   Note that decompression is enabled by default but only handled for the options above. A custom BodyHandler
   may require opting out of compression, or implementing a multimethod specific to the handler. 
-  
 
 `coerce` Determine which status codes to coerce response bodies. `:unexceptional` (default), `:always`, `:exceptional`. 
   This presently only has an effect for json coercions.
+  
+`query-params` A map of options to turn into a query string. See usage examples for details.
+
+`multi-param-style` Decides how to represent array values when converting `query-params` into a query string. Accepts:
+  
+  - When unset (default), a repeating parameter `a=1&a=2&a=3`
+  - `:array`, a repeating param with array suffix: `a[]=1&a[]=2&a[]=3`
+  - `:index`, a repeating param with array suffix and index: `a[0]=1&a[1]=2&a[2]=3`
 
 `headers` Map of lower case strings to header values, concatenated with ',' when multiple values for a key.
   This is presently a slight incompatibility with clj-http, which accepts keyword keys and list values.
@@ -250,6 +259,23 @@ returned can be used to indicate when processing has completed.
 ; true
 ```
 
+### Making queries
+
+hato can generate url encoded query strings in multiple ways
+
+```clojure
+; Via un url
+(hc/get "http://moo.com?hello=world&a=1&a=2" {})
+
+; Via query-params
+(hc/get "http://moo.com" {:query-params {:hello "world" :a [1 2]}})
+
+; Values are urlencoded
+(hc/get "http://moo.com" {:query-params {:q "a-space and-some-chars$&!"}})
+; Generates query: "q=a-space+and-some-chars%24%26%21"
+```
+
+
 ### Output coercion
 
 hato performs output coercion of the response body, returning a string by default.
@@ -289,6 +315,35 @@ By default, hato only coerces JSON responses for unexceptional statuses. Control
 :exceptional ; only coerce for exceptional status codes
 :always ; coerce for any status code
 ```
+
+### Redirects
+
+By default, hato does not follow redirects. To change this behaviour, use the `redirect-policy` option.
+
+Implementation notes from the [docs](https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpClient.Redirect.html):
+> When automatic redirection occurs, the request method of the redirected request may be modified 
+depending on the specific 30X status code, as specified in [RFC 7231](https://tools.ietf.org/html/rfc7231). 
+In addition, the 301 and 302 status codes cause a POST request to be converted to a GET in the redirected request.
+
+```clojure
+; Always redirect, except from HTTPS URLs to HTTP URLs
+(hc/get "http://moo.com" {:redirect-policy :normal})
+
+; Always redirect
+(hc/get "http://moo.com" {:redirect-policy :always})
+```
+
+The Java HttpClient does not provide a direct option for max redirects. By default, it is 5.
+To change this, set the java option to e.g. `-Djdk.httpclient.redirects.retrylimit=10`.
+
+The client does not throw an exception if the retry limit has been breached. Instead, 
+it will return a response with the redirect status code (30x) and empty body.
+
+### Debugging
+
+To view the logs of the Java client, add the java option `-Djdk.httpclient.HttpClient.log=all`.
+In Leinengen, this can be done using `:jvm-opts` in `project.clj`.
+
 
 ## License
 

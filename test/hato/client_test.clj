@@ -88,7 +88,12 @@
       (let [https-tp-http-uri (format "https://httpbin.org/redirect-to?url=%s" "http://httpbin.org/get")
             r (get https-tp-http-uri {:as :string :redirect-policy :normal})]
         (is (= 302 (:status r)))
-        (is (= https-tp-http-uri (:uri r)))))))
+        (is (= https-tp-http-uri (:uri r)))))
+
+    (testing "default max redirects"
+      (are [status redirects] (= status (:status (get (str "https://httpbin.org/redirect/" redirects) {:redirect-policy :normal})))
+                              200 4
+                              302 5))))
 
 (deftest ^:Integration test-cookies
   (testing "no cookie manager"
@@ -146,7 +151,7 @@
              :none
              :all
              :original-server
-             :any-random-thing  ; Invalid values are ignored, so the default :original-server will be in effect
+             :any-random-thing                              ; Invalid values are ignored, so the default :original-server will be in effect
              )
 
     (let [cm (cookie-manager :none)]
