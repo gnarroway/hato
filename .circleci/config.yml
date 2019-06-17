@@ -1,4 +1,4 @@
-version: 2.1
+version: 2
 jobs:
   test:
     docker:
@@ -8,9 +8,6 @@ jobs:
       - run: lein test
 
   publish-snapshot:
-    branches:
-      only:
-        - master
     docker:
       - image: circleci/clojure:openjdk-11-lein
     steps:
