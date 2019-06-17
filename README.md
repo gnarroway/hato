@@ -6,24 +6,24 @@
 
 An HTTP client for Clojure, wrapping JDK 11's [HttpClient](https://openjdk.java.net/groups/net/httpclient/intro.html).
 
-It supports both HTTP/1.1 and HTTP/2, with synchronous and asynchronous execution models.
+It supports both HTTP/1.1 and HTTP/2, with synchronous and asynchronous execution modes.
 
-In general, it will feel familiar to users of ring-style http clients like [clj-http](https://github.com/dakrone/clj-http).
+In general, it will feel familiar to users of http clients like [clj-http](https://github.com/dakrone/clj-http).
 The API is designed to be idiomatic and to make common tasks convenient, whilst
 still allowing the underlying HttpClient to be configured via native Java objects.
 
 ## Status
 
-hato is under active development. Once it has stabilized to a reasonable degree, it will be published to clojars.
+hato is under active development. Once it has stabilized to a reasonable degree, a release will be published to clojars.
 
 ## Installation
 
-hato requires JDK 11 or above. If you are running an older Java, please look at [clj-http](https://github.com/dakrone/clj-http).
+hato requires JDK 11 and above. If you are running an older vesion of Java, please look at [clj-http](https://github.com/dakrone/clj-http).
 
 For Leinengen, add this to your project.clj
 
 ```clojure
-[hato "TBD"]
+[hato "0.1.0-SNAPSHOT"]
 ```
 
 ## Quickstart
@@ -49,7 +49,10 @@ Require it to get started and make a request:
 
 ### Building a client
 
-Generally, you want to make a reusable client first. This can be done with `build-http-client`:
+Generally, you want to make a reusable client first. This will give you nice things like 
+persistent connections with a connection pool.
+
+This can be done with `build-http-client`:
 
 ```clojure
 ; Build the client
@@ -101,9 +104,12 @@ Generally, you want to make a reusable client first. This can be done with `buil
   - `:no-proxy` to explicitly disable the default behavior, implying a direct connection; or
   - a [`java.net.ProxySelector`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/ProxySelector.html)
 
-`ssl-context` a javax.net.ssl.SSLContext
+`ssl-context` Sets the SSLContext. If not specified, uses the default `(SSLContext/getDefault)`. Accepts:
 
-`ssl-parameters` a javax.net.ssl.SSLParameters
+  - a map of `:keystore` `:keystore-pass` `:trust-store` `:trust-store-pass`. See client authentication examples for more details.
+  - an [`javax.net.ssl.SSLContext`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/javax/net/ssl/SSLContext.html)
+
+`ssl-parameters` a `javax.net.ssl.SSLParameters`
 
 `version` Sets preferred HTTP protocol version.
   - `:http-1.1` prefer HTTP/1.1
@@ -139,7 +145,7 @@ request and returns a response. Convenience wrappers are provided for the http v
   Sets the appropriate header.
   
 `body` the body of the request. This should be a string, byte array, or input stream. Note that clojure data
-  is not automatically coerce to string e.g. sending a json body will require generating
+  is not automatically coerced to string e.g. sending a json body will require generating
   a json string via [cheshire](https://github.com/dakrone/cheshire) or other means.
   
 `as` Return response body in a certain format. Valid options:
@@ -179,17 +185,13 @@ request and returns a response. Convenience wrappers are provided for the http v
   
 `async?` Boolean, defaults to false. See below section on async requests.
  
----
-
-##### Options specific to underlying implementation.
-
 `http-client` An `HttpClient` created by `build-http-client` or other means. If not provided, all options passed
   to request will be passed through to `build-http-client`. i.e. `request` accepts all options detailed in the 
   above `build-http-client` section.
 
 `expect-continue` Requests the server to acknowledge the request before sending the body. This is disabled by default. 
 
-`timeout` Timeout to receiving a response, in milliseconds
+`timeout` Timeout to receiving a response, in milliseconds.
 
 `version` Sets preferred HTTP protocol version per request.
 
@@ -318,6 +320,27 @@ By default, hato only coerces JSON responses for unexceptional statuses. Control
 :always ; coerce for any status code
 ```
 
+### Certificate authentication
+
+Client authentication can be done by passing in an SSLContext:
+
+```clojure
+; Pass in your credentials
+(hc/get "https://secure-url.com" {:ssl-context {:keystore (io/file "somepath.p12") 
+                                                :keystore-pass "password"
+                                                :trust-store (io/file "cacerts.p12"
+                                                :trust-store-pass "another-password")}})
+                                                
+; If your certs are stored in your resources folder:
+(hc/get "https://secure-url.com" {:ssl-context {:keystore (-> "somepath.p12" io/resource io/file) 
+                                                :keystore-pass "password"
+                                                :trust-store (-> "cacerts.p12" io/resource io/file)
+                                                :trust-store-pass "another-password"}})
+
+; Directly pass in an SSLContext that you made yourself
+(hc/get "https://secure-url.com" {:ssl-context SomeSSLContext})
+```
+
 ### Redirects
 
 By default, hato does not follow redirects. To change this behaviour, use the `redirect-policy` option.
@@ -346,6 +369,15 @@ it will return a response with the redirect status code (30x) and empty body.
 To view the logs of the Java client, add the java option `-Djdk.httpclient.HttpClient.log=all`.
 In Leinengen, this can be done using `:jvm-opts` in `project.clj`.
 
+### Other advanced options
+
+```
+# Default keep alive for connection pool is 1200 seconds
+-Djdk.httpclient.keepalivetimeout=1200
+
+# Default connection pool size is 0 (unbounded)
+-Djdk.httpclient.connectionPoolSize=0
+```
 
 ## License
 

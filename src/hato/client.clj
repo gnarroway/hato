@@ -2,23 +2,22 @@
   "Core implementation of an HTTP client wrapping JDK11's java.net.http.HttpClient."
   (:refer-clojure :exclude [get])
   (:require
-    [clojure.java.io :as io]
-    [clojure.string :as str]
-    [hato.middleware :as middleware])
+   [clojure.string :as str]
+   [hato.middleware :as middleware])
   (:import
-    (java.net.http
-      HttpClient$Redirect
-      HttpClient$Version
-      HttpResponse$BodyHandler
-      HttpResponse$BodyHandlers
-      HttpRequest$BodyPublisher
-      HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest HttpClient$Builder)
-    (java.net CookiePolicy CookieManager URI ProxySelector Authenticator PasswordAuthentication)
-    (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
-    (java.security KeyStore)
-    (java.time Duration)
-    (java.util.function Function)
-    (java.io File)))
+   (java.net.http
+    HttpClient$Redirect
+    HttpClient$Version
+    HttpResponse$BodyHandler
+    HttpResponse$BodyHandlers
+    HttpRequest$BodyPublisher
+    HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest HttpClient$Builder)
+   (java.net CookiePolicy CookieManager URI ProxySelector Authenticator PasswordAuthentication)
+   (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
+   (java.security KeyStore)
+   (java.time Duration)
+   (java.util.function Function)
+   (java.io File)))
 
 (defn- ->Authenticator
   [v]
@@ -29,7 +28,6 @@
         (proxy [Authenticator] []
           (getPasswordAuthentication []
             (PasswordAuthentication. user (char-array pass))))))))
-
 
 (defn- ->BodyHandler
   "Returns a BodyHandler.
@@ -96,6 +94,35 @@
     v
     (-> v name str/upper-case HttpClient$Redirect/valueOf)))
 
+(defn- ->SSLContext
+  "Returns an SSLContext.
+
+  `v` should be an SSLContext, or a map with the following keys:
+
+  `keystore` is an URL e.g. (io/file somepath.p12)
+  `keystore-pass` is the password for the keystore
+  `trust-store` is an URL e.g. (io/file cacerts.p12)
+  `trust-store-pass` is the password for the trust store
+
+  If the path is in your resources, use (-> file.p12 io/resource io/file)"
+  [v]
+  (if (instance? SSLContext v)
+    v
+    (let [{:keys [keystore keystore-type keystore-pass trust-store trust-store-type trust-store-pass]
+           :or   {keystore-type "pkcs12" trust-store-type "pkcs12"}} v]
+      (let [ks (KeyStore/getInstance keystore (char-array keystore-pass))
+
+            kmf (doto (KeyManagerFactory/getInstance (KeyManagerFactory/getDefaultAlgorithm))
+                  (.init ks (char-array keystore-pass)))
+
+            ts (KeyStore/getInstance trust-store (char-array trust-store-pass))
+
+            tmf (doto (TrustManagerFactory/getInstance (TrustManagerFactory/getDefaultAlgorithm))
+                  (.init ts))]
+
+        (doto (SSLContext/getInstance "TLS")
+          (.init (.getKeyManagers kmf) (.getTrustManagers tmf) nil))))))
+
 (defn- ->Version
   "Returns a HttpClient$Version.
 
@@ -113,7 +140,6 @@
   e.g. HTTP_1_1 -> :http-1.1"
   [s]
   (-> s (str/replace #"^HTTP_(.+)$" "http-$1") (str/replace "_" ".") keyword))
-
 
 (defn- response-map
   "Creates a response map.
@@ -157,35 +183,6 @@
           (doto cm (.setCookiePolicy cp))
           cm)))))
 
-(defn ssl-context
-  "Creates an SSLContext.
-
-  `keystore` is an URL e.g. (io/resource somepath.p12)
-  `keystore-type` is the type of keystore to create [note: not the type of the file] (default: pkcs12)
-  `keystore-pass` is the password for the keystore
-  `trust-store` is an URL e.g. (io/resource cacerts.p12)
-  `trust-store-type` is the type of trust store to create [note: not the type of the file] (default: pkcs12)
-  `trust-store-pass` is the password for the trust store"
-  [{:keys [keystore keystore-type keystore-pass trust-store trust-store-type trust-store-pass]
-    :or   {keystore-type "pkcs12" trust-store-type "pkcs12"}
-    }]
-  (with-open [kss (io/input-stream keystore)
-              tss (io/input-stream trust-store)]
-    (let [ks (doto (KeyStore/getInstance keystore-type)
-               (.load kss (char-array keystore-pass)))
-
-          kmf (doto (KeyManagerFactory/getInstance (KeyManagerFactory/getDefaultAlgorithm))
-                (.init ks (char-array keystore-pass)))
-
-          ts (doto (KeyStore/getInstance trust-store-type)
-               (.load tss (char-array trust-store-pass)))
-
-          tmf (doto (TrustManagerFactory/getInstance (TrustManagerFactory/getDefaultAlgorithm))
-                (.init ts))]
-
-      (doto (SSLContext/getInstance "TLS")
-        (.init (.getKeyManagers kmf) (.getTrustManagers tmf) nil)))))
-
 (defn build-http-client
   "Creates an HttpClient from an option map.
 
@@ -210,8 +207,7 @@
            ssl-context
            ssl-parameters
            version]
-    :as   opts
-    }]
+    :as   opts}]
   (let [builder (HttpClient/newBuilder)]
     (when authenticator
       (when-let [a (->Authenticator authenticator)]
@@ -233,7 +229,7 @@
       (.proxy builder (->ProxySelector proxy)))
 
     (when ssl-context
-      (.sslContext builder ssl-context))
+      (.sslContext builder (->SSLContext ssl-context)))
 
     (when ssl-parameters
       (.sslParameters builder ssl-parameters))
@@ -274,13 +270,13 @@
     :or   {request-method :get}
     :as   req}]
   (let [builder (HttpRequest/newBuilder
-                  (URI. (name scheme)
-                        nil
-                        server-name
-                        (or server-port -1)
-                        uri
-                        query-string
-                        nil))]
+                 (URI. (name scheme)
+                       nil
+                       server-name
+                       (or server-port -1)
+                       uri
+                       query-string
+                       nil))]
     (.method builder (str/upper-case (name request-method)) (->BodyPublisher req))
 
     (when expect-continue
@@ -306,23 +302,23 @@
     (if-not async?
       (let [resp (.send http-client http-request bh)]
         (response-map
-          {:request     req
-           :http-client http-client
-           :response    resp}))
+         {:request     req
+          :http-client http-client
+          :response    resp}))
 
       (-> (.sendAsync http-client http-request bh)
           (.thenApply
-            (reify Function
-              (apply [_ resp]
-                (respond
-                  (response-map
-                    {:request     req
-                     :http-client http-client
-                     :response    resp})))))
+           (reify Function
+             (apply [_ resp]
+               (respond
+                (response-map
+                 {:request     req
+                  :http-client http-client
+                  :response    resp})))))
           (.exceptionally
-            (reify Function
-              (apply [_ e]
-                (raise e))))))))
+           (reify Function
+             (apply [_ e]
+               (raise e))))))))
 
 (def request (middleware/wrap-request request*))
 
