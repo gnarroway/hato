@@ -4,8 +4,8 @@
             [hato.middleware :refer :all]
             [clojure.java.io :as io])
   (:import (java.util.zip
-             GZIPOutputStream)
-           (java.io ByteArrayOutputStream ByteArrayInputStream InputStream)))
+            GZIPOutputStream)
+           (java.io ByteArrayOutputStream ByteArrayInputStream)))
 
 (deftest test-wrap-request-timing
   (let [r ((wrap-request-timing (fn [x] (Thread/sleep 1) x)) {})]
@@ -30,10 +30,10 @@
   (testing "with multi-param-style"
     (let [q {:a [1 2]}]
       (are [expected style] (= expected (:query-string ((wrap-query-params identity) {:query-params q :multi-param-style style})))
-                            "a=1&a=2" nil
-                            "a=1&a=2" :some-unrecognised
-                            "a[0]=1&a[1]=2" :indexed
-                            "a[]=1&a[]=2" :array))))
+        "a=1&a=2" nil
+        "a=1&a=2" :some-unrecognised
+        "a[0]=1&a[1]=2" :indexed
+        "a[]=1&a[]=2" :array))))
 
 (deftest test-wrap-basic-auth
   (testing "with no basic-auth option"
@@ -108,13 +108,12 @@
     (let [r ((wrap-decompression identity) {})]
       (is (= "gzip, deflate" (get-in r [:headers "accept-encoding"])) "Adds request headers"))
 
-
     (are [response] (= "s" (-> ((wrap-decompression (constantly response)) {}) :body (String.)))
-                    {:body (.getBytes "s")}
-                    {:body (gzip (.getBytes "s")) :headers {"content-encoding" "gzip"}}
+      {:body (.getBytes "s")}
+      {:body (gzip (.getBytes "s")) :headers {"content-encoding" "gzip"}}
                     ; TODO stream
                     ; TODO deflate
-                    ))
+      ))
 
   (testing "with decompress-body option"
     (let [r ((wrap-decompression identity) {:decompress-body false})]
@@ -123,36 +122,36 @@
 (deftest test-wrap-output-coercion
   (testing "coerces depending on status and :coerce option"
     (are [expected status coerce] (= expected (-> ((wrap-output-coercion (constantly {:status status :body (.getBytes "{\"a\": 1}")})) {:as :json :coerce coerce}) :body))
-                                  {:a 1} 200 nil
-                                  {:a 1} 300 nil
-                                  "{\"a\": 1}" 400 nil
-                                  "{\"a\": 1}" 500 nil
-                                  {:a 1} 200 :unexceptional
-                                  {:a 1} 300 :unexceptional
-                                  "{\"a\": 1}" 400 :unexceptional
-                                  "{\"a\": 1}" 500 :unexceptional
-                                  {:a 1} 200 :always
-                                  {:a 1} 300 :always
-                                  {:a 1} 400 :always
-                                  {:a 1} 500 :always
-                                  "{\"a\": 1}" 200 :exceptional
-                                  "{\"a\": 1}" 300 :exceptional
-                                  {:a 1} 400 :exceptional
-                                  {:a 1} 500 :exceptional))
+      {:a 1} 200 nil
+      {:a 1} 300 nil
+      "{\"a\": 1}" 400 nil
+      "{\"a\": 1}" 500 nil
+      {:a 1} 200 :unexceptional
+      {:a 1} 300 :unexceptional
+      "{\"a\": 1}" 400 :unexceptional
+      "{\"a\": 1}" 500 :unexceptional
+      {:a 1} 200 :always
+      {:a 1} 300 :always
+      {:a 1} 400 :always
+      {:a 1} 500 :always
+      "{\"a\": 1}" 200 :exceptional
+      "{\"a\": 1}" 300 :exceptional
+      {:a 1} 400 :exceptional
+      {:a 1} 500 :exceptional))
 
   (testing "json coercions"
     (are [expected as] (= expected (-> ((wrap-output-coercion (constantly {:status 200 :body (.getBytes "{\"a\": 1}")})) {:as as}) :body))
-                       {:a 1} :json
-                       {:a 1} :json-strict
-                       {"a" 1} :json-string-keys
-                       {"a" 1} :json-strict-string-keys))
+      {:a 1} :json
+      {:a 1} :json-strict
+      {"a" 1} :json-string-keys
+      {"a" 1} :json-strict-string-keys))
 
   (testing "clojure coercions"
     (is (= {:a 1} (-> ((wrap-output-coercion (constantly {:status 200 :body (.getBytes "{:a 1}")})) {:as :clojure}) :body))))
 
   (testing "transit coercions"
     (are [expected as] (= expected (-> ((wrap-output-coercion (constantly {:status 200 :body (.getBytes "[\"^ \",\"~:a\",[1,2]]")})) {:as as}) :body))
-                       {:a [1 2]} :transit+json))
+      {:a [1 2]} :transit+json))
 
   (testing "string coercions"
     (is (= "{:a 1}" (-> ((wrap-output-coercion (constantly {:status 200 :body (.getBytes "{:a 1}")})) {:as :string}) :body))))
@@ -163,22 +162,21 @@
       (is (= bs (-> ((wrap-output-coercion (constantly {:status 200 :body bs})) {:as :byte-array}) :body)))
       (is (= iss (-> ((wrap-output-coercion (constantly {:status 200 :body iss})) {:as :stream}) :body))))))
 
-
 (deftest test-wrap-exceptions
   (testing "for unexceptional status codes"
     (are [status] (= {:status status} ((wrap-exceptions (constantly {:status status})) {}))
-                  200
-                  300))
+      200
+      300))
 
   (testing "with no throw-exceptions option"
     (are [status] (thrown? Exception ((wrap-exceptions (constantly {:status status})) {}))
-                  400
-                  500))
+      400
+      500))
 
   (testing "with throw-exceptions option"
     (are [status] (= {:status status} ((wrap-exceptions (constantly {:status status})) {:throw-exceptions false}))
-                  400
-                  500)))
+      400
+      500)))
 
 (deftest test-wrap-accept
   (testing "when no accept option"
@@ -187,10 +185,10 @@
 
   (testing "with accept option"
     (are [expected accept] (= {:headers {"accept" expected}} ((wrap-accept identity) {:accept accept}))
-                           "application/json" :json
-                           "application/text" :text
-                           "application/any-random-thing" :any-random-thing
-                           "text/html" "text/html")))
+      "application/json" :json
+      "application/text" :text
+      "application/any-random-thing" :any-random-thing
+      "text/html" "text/html")))
 
 (deftest test-wrap-accept-encoding
   (testing "when no accept-encoding option"
@@ -199,8 +197,8 @@
 
   (testing "with accept-encoding option"
     (are [expected accept] (= {:headers {"accept-encoding" expected}} ((wrap-accept-encoding identity) {:accept-encoding accept}))
-                           "gzip" [:gzip]
-                           "gzip, deflate" ["gzip" "deflate"])))
+      "gzip" [:gzip]
+      "gzip, deflate" ["gzip" "deflate"])))
 
 (deftest test-wrap-content-type
   (testing "when no content-type option"
@@ -210,10 +208,10 @@
   (testing "with content-type option"
     (are [expected content-type] (= {:headers      {"content-type" expected}
                                      :content-type content-type} ((wrap-content-type identity) {:content-type content-type}))
-                                 "application/json" :json
-                                 "application/text" :text
-                                 "application/any-random-thing" :any-random-thing
-                                 "text/html" "text/html")))
+      "application/json" :json
+      "application/text" :text
+      "application/any-random-thing" :any-random-thing
+      "text/html" "text/html")))
 
 (deftest test-wrap-form-params
   (testing "when no form-params option"
@@ -249,10 +247,9 @@
 
   (testing "with method option"
     (are [method] (= {:request-method method} ((wrap-method identity) {:method method}))
-                  :get
-                  :post
-                  :any-random-thing)))
-
+      :get
+      :post
+      :any-random-thing)))
 
 (deftest test-wrap-request
   (testing "returns a response after passing through all the default middleware"

@@ -1,28 +1,28 @@
 (ns hato.middleware
   "Adapted from https://www.github.com/dakrone/clj-http"
   (:require
-    [clojure.edn :as edn]
-    [clojure.java.io :as io]
-    [clojure.string :as str])
+   [clojure.edn :as edn]
+   [clojure.java.io :as io]
+   [clojure.string :as str])
   (:import
-    (java.util
-      Base64)
-    (java.io
-      InputStream
-      ByteArrayInputStream
-      ByteArrayOutputStream BufferedInputStream)
-    (java.net
-      URLDecoder
-      URLEncoder
-      URL)
-    (java.util.zip
-      GZIPInputStream InflaterInputStream ZipException Inflater)))
+   (java.util
+    Base64)
+   (java.io
+    InputStream
+    ByteArrayInputStream
+    ByteArrayOutputStream BufferedInputStream)
+   (java.net
+    URLDecoder
+    URLEncoder
+    URL)
+   (java.util.zip
+    GZIPInputStream InflaterInputStream ZipException Inflater)))
 
 ;; Cheshire is an optional dependency, so we check for it at compile time.
 (def json-enabled?
   (try
     (require
-      'cheshire.core)
+     'cheshire.core)
     true
     (catch Throwable _ false)))
 
@@ -30,7 +30,7 @@
 (def transit-enabled?
   (try
     (require
-      'cognitect.transit)
+     'cognitect.transit)
     true
     (catch Throwable _ false)))
 
@@ -126,9 +126,8 @@
     (-> path-or-query
         (str/replace " " "%20")
         (str/replace
-          #"[^a-zA-Z0-9\.\-\_\~\!\$\&\'\(\)\*\+\,\;\=\:\@\/\%\?]"
-          url-encode))))
-
+         #"[^a-zA-Z0-9\.\-\_\~\!\$\&\'\(\)\*\+\,\;\=\:\@\/\%\?]"
+         url-encode))))
 
 (defn parse-url
   "Parse a URL string into a map of interesting parts."
@@ -145,9 +144,10 @@
 
 
 ;; Statuses for which hato will not throw an exception
+
+
 (def unexceptional-status?
   #{200 201 202 203 204 205 206 207 300 301 302 303 304 307})
-
 
 (defn- exceptions-response
   [req {:keys [status] :as resp}]
@@ -159,7 +159,6 @@
 
       :else
       (throw (ex-info (str "status: " status) resp)))))
-
 
 (defn wrap-exceptions
   "Middleware that throws response as an ExceptionInfo if the response has
@@ -324,15 +323,14 @@
     ([req respond raise]
      (client (accept-encoding-request req) respond raise))))
 
-
 (defn detect-charset
   "Given a charset header, detect the charset, returns UTF-8 if not found."
   [content-type]
   (or
-    (when-let [found (when content-type
-                       (re-find #"(?i)charset\s*=\s*([^\s]+)" content-type))]
-      (second found))
-    "UTF-8"))
+   (when-let [found (when content-type
+                      (re-find #"(?i)charset\s*=\s*([^\s]+)" content-type))]
+     (second found))
+   "UTF-8"))
 
 (defn- multi-param-suffix [index multi-param-style]
   (case multi-param-style
@@ -345,10 +343,10 @@
             (mapcat (fn [[k v]]
                       (if (sequential? v)
                         (map-indexed
-                          #(str (URLEncoder/encode (name k) encoding)
-                                (multi-param-suffix %1 multi-param-style)
-                                "="
-                                (URLEncoder/encode (str %2) encoding)) v)
+                         #(str (URLEncoder/encode (name k) encoding)
+                               (multi-param-suffix %1 multi-param-style)
+                               "="
+                               (URLEncoder/encode (str %2) encoding)) v)
                         [(str (URLEncoder/encode (name k) encoding)
                               "="
                               (URLEncoder/encode (str v) encoding))]))
@@ -357,7 +355,6 @@
 (defn generate-query-string [params & [content-type multi-param-style]]
   (let [encoding (detect-charset content-type)]
     (generate-query-string-with-encoding params encoding multi-param-style)))
-
 
 (defn- query-params-request
   [{:keys [query-params content-type multi-param-style]
@@ -371,9 +368,9 @@
                        (str old-query-string "&" new-query-string)
                        new-query-string))
                    (generate-query-string
-                     query-params
-                     (content-type-value content-type)
-                     multi-param-style)))
+                    query-params
+                    (content-type-value content-type)
+                    multi-param-style)))
     req))
 
 (defn wrap-query-params
@@ -385,7 +382,6 @@
      (client (query-params-request req)))
     ([req respond raise]
      (client (query-params-request req) respond raise))))
-
 
 (defn basic-auth-value [basic-auth]
   (let [basic-auth (if (string? basic-auth)
@@ -463,7 +459,7 @@
      (client (method-request req) respond raise))))
 
 (defmulti coerce-form-params
-          (fn [req] (keyword (content-type-value (:content-type req)))))
+  (fn [req] (keyword (content-type-value (:content-type req)))))
 
 (defmethod coerce-form-params :application/edn
   [{:keys [form-params]}]
@@ -595,7 +591,6 @@
                  (InflaterInputStream. stream)
                  (InflaterInputStream. stream (Inflater. true)))]
 
-
       (if (instance? InputStream b)
         iis'
         (with-open [xin iis'
@@ -606,7 +601,7 @@
 ;; Multimethods for Content-Encoding dispatch automatically
 ;; decompressing response bodies
 (defmulti decompress-body
-          (fn [resp] (get-in resp [:headers "content-encoding"])))
+  (fn [resp] (get-in resp [:headers "content-encoding"])))
 
 (defmethod decompress-body "gzip"
   [resp]
@@ -624,8 +619,8 @@
 
 (defmethod decompress-body :default [resp]
   (assoc resp
-    :orig-content-encoding
-    (get-in resp [:headers "content-encoding"])))
+         :orig-content-encoding
+         (get-in resp [:headers "content-encoding"])))
 
 (defn- decompression-request
   [req]
@@ -653,7 +648,6 @@
              #(respond (decompression-response req %))
              raise))))
 
-
 (def default-middleware
   "The default list of middleware hato uses for wrapping requests."
   [wrap-request-timing
@@ -678,8 +672,7 @@
    wrap-form-params
    ;wrap-nested-params TODO
    ;wrap-flatten-nested-params TODO
-   wrap-method
-   ])
+   wrap-method])
 
 (defn wrap-request
   "Returns a batteries-included HTTP request function corresponding to the given
