@@ -2,8 +2,9 @@
   "Core implementation of an HTTP client wrapping JDK11's java.net.http.HttpClient."
   (:refer-clojure :exclude [get])
   (:require
-   [clojure.string :as str]
-   [hato.middleware :as middleware])
+    [clojure.string :as str]
+    [hato.middleware :as middleware]
+    [clojure.java.io :as io])
   (:import
    (java.net.http
     HttpClient$Redirect
