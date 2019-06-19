@@ -326,16 +326,10 @@ Client authentication can be done by passing in an SSLContext:
 
 ```clojure
 ; Pass in your credentials
-(hc/get "https://secure-url.com" {:ssl-context {:keystore (io/file "somepath.p12") 
+(hc/get "https://secure-url.com" {:ssl-context {:keystore (io/resource "somepath.p12") 
                                                 :keystore-pass "password"
-                                                :trust-store (io/file "cacerts.p12"
-                                                :trust-store-pass "another-password")}})
-                                                
-; If your certs are stored in your resources folder:
-(hc/get "https://secure-url.com" {:ssl-context {:keystore (-> "somepath.p12" io/resource io/file) 
-                                                :keystore-pass "password"
-                                                :trust-store (-> "cacerts.p12" io/resource io/file)
-                                                :trust-store-pass "another-password"}})
+                                                :trust-store (io/resource "cacerts.p12"
+                                                :trust-store-pass "another-password")}})                                             
 
 ; Directly pass in an SSLContext that you made yourself
 (hc/get "https://secure-url.com" {:ssl-context SomeSSLContext})

@@ -94,34 +94,38 @@
     v
     (-> v name str/upper-case HttpClient$Redirect/valueOf)))
 
-(defn- ->SSLContext
+(defn ->SSLContext
   "Returns an SSLContext.
 
   `v` should be an SSLContext, or a map with the following keys:
 
-  `keystore` is an URL e.g. (io/file somepath.p12)
+  `keystore` is an URL e.g. (io/resource somepath.p12)
   `keystore-pass` is the password for the keystore
-  `trust-store` is an URL e.g. (io/file cacerts.p12)
+  `keystore-type` is the type of keystore to create [note: not the type of the file] (default: pkcs12)
+  `trust-store` is an URL e.g. (io/resource cacerts.p12)
   `trust-store-pass` is the password for the trust store
-
-  If the path is in your resources, use (-> file.p12 io/resource io/file)"
+  `trust-store-type` is the type of trust store to create [note: not the type of the file] (default: pkcs12)"
   [v]
   (if (instance? SSLContext v)
     v
     (let [{:keys [keystore keystore-type keystore-pass trust-store trust-store-type trust-store-pass]
            :or   {keystore-type "pkcs12" trust-store-type "pkcs12"}} v]
-      (let [ks (KeyStore/getInstance keystore (char-array keystore-pass))
+      (with-open [kss (io/input-stream keystore)
+                  tss (io/input-stream trust-store)]
+        (let [ks (doto (KeyStore/getInstance keystore-type)
+                   (.load kss (char-array keystore-pass)))
 
-            kmf (doto (KeyManagerFactory/getInstance (KeyManagerFactory/getDefaultAlgorithm))
-                  (.init ks (char-array keystore-pass)))
+              kmf (doto (KeyManagerFactory/getInstance (KeyManagerFactory/getDefaultAlgorithm))
+                    (.init ks (char-array keystore-pass)))
 
-            ts (KeyStore/getInstance trust-store (char-array trust-store-pass))
+              ts (doto (KeyStore/getInstance trust-store-type)
+                   (.load tss (char-array trust-store-pass)))
 
-            tmf (doto (TrustManagerFactory/getInstance (TrustManagerFactory/getDefaultAlgorithm))
-                  (.init ts))]
+              tmf (doto (TrustManagerFactory/getInstance (TrustManagerFactory/getDefaultAlgorithm))
+                    (.init ts))]
 
-        (doto (SSLContext/getInstance "TLS")
-          (.init (.getKeyManagers kmf) (.getTrustManagers tmf) nil))))))
+          (doto (SSLContext/getInstance "TLS")
+            (.init (.getKeyManagers kmf) (.getTrustManagers tmf) nil)))))))
 
 (defn- ->Version
   "Returns a HttpClient$Version.
