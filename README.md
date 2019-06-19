@@ -50,7 +50,7 @@ Require it to get started and make a request:
 ### Building a client
 
 Generally, you want to make a reusable client first. This will give you nice things like 
-persistent connections with a connection pool.
+persistent connections and connection pooling.
 
 This can be done with `build-http-client`:
 
@@ -60,15 +60,14 @@ This can be done with `build-http-client`:
                                 :follow-redirects :always}))
 
 ; Use it for multiple requests
-(hc/get "http://moo.com" {:http-client c})
-(hc/get "http://cow.com" {:http-client c})
+(hc/get "https://httpbin.org/get" {:http-client c})
+(hc/get "https://httpbin.org/get?again" {:http-client c})
 ```
 
 #### build-http-client options
 
-`authenticator` Used for non-preemptive basic authentication. In general, 
-  you should just use the `basic-auth` per-request option which performs
-  pre-emptive authentication. This is here to expose the full HttpClient API. Accepts:
+`authenticator` Used for non-preemptive basic authentication. See the `basic-auth` request
+  option for pre-emptive authentication. Accepts:
 
  - A map of `{:user "username" :pass "password"}`
  - a [`java.net.Authenticator`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/Authenticator.html)
@@ -86,7 +85,7 @@ This can be done with `build-http-client`:
  - `:original-server` (default) Accepts cookies from original server
  - An implementation of [`java.net.CookiePolicy`](https://docs.oracle.com/javase/7/docs/api/java/net/CookiePolicy.html).
 
-`connect-timeout` Timeout to making a connection, in milliseconds
+`connect-timeout` Timeout to making a connection, in milliseconds (default: unlimited).
 
 `redirect-policy` Sets the redirect policy.
 
@@ -133,8 +132,7 @@ request and returns a response. Convenience wrappers are provided for the http v
 
 `method`Lowercase keyword corresponding to a HTTP request method, such as :get or :post. 
 
-`url` A full url to the requested resource (e.g. "http://user:pass@moo.com/api?q=1"). For historical reasons,
-  `uri` cannot be used in the same manner.
+`url` An absolute url to the requested resource (e.g. "http://moo.com/api/1").
  
 `accept` Sets the `accept` header. a keyword (e.g. `:json`, for any application/* type) or string (e.g. `"text/html"`) for anything else. 
   
@@ -173,7 +171,8 @@ request and returns a response. Convenience wrappers are provided for the http v
 `headers` Map of lower case strings to header values, concatenated with ',' when multiple values for a key.
   This is presently a slight incompatibility with clj-http, which accepts keyword keys and list values.
 
-`basic-auth` Sets `Basic` authorization header, `"user:pass"` or `["user" "pass"]`. 
+`basic-auth` Performs basic authentication (sending `Basic` authorization header). Accepts `{:user "user" :pass "pass"}`
+  Note that basic auth can also be passed via the `url` (e.g. `http://user:pass@moo.com`)
 
 `oauth-token` String, will set `Bearer` authorization header
 
@@ -185,38 +184,17 @@ request and returns a response. Convenience wrappers are provided for the http v
   
 `async?` Boolean, defaults to false. See below section on async requests.
  
-`http-client` An `HttpClient` created by `build-http-client` or other means. If not provided, all options passed
-  to request will be passed through to `build-http-client`. i.e. `request` accepts all options detailed in the 
-  above `build-http-client` section.
+`http-client` An `HttpClient` created by `build-http-client` or other means. For single-use clients, it also
+  accepts a map of the options accepted by `build-http-client`.
 
 `expect-continue` Requests the server to acknowledge the request before sending the body. This is disabled by default. 
 
-`timeout` Timeout to receiving a response, in milliseconds.
+`timeout` Timeout to receiving a response, in milliseconds (default: unlimited).
 
 `version` Sets preferred HTTP protocol version per request.
 
   - `:http-1.1` prefer HTTP/1.1
   - `:http-2` (default) tries to upgrade to HTTP/2, falling back to HTTP/1.1
-
----
-
-##### Other options
-
-The following options exist for compatibility with the ring spec. In general, the core options
- above will be transformed into them via middleware, and as such, these are just documented for completeness.
- 
-`scheme` The transport protocol, :http or :https
-
-`server-name` hostname e.g. google.com
-
-`uri` The resource excluding query string and '?', starting with '/'. Note that for historical reasons,
-this is not the same as the full `url`.
-
-`server-port` Integer
-
-`query-string` Query string, if present
-
-`request-method` Same as `method`. Exists to be like ring.
 
 
 ## Usage examples
@@ -326,13 +304,13 @@ Client authentication can be done by passing in an SSLContext:
 
 ```clojure
 ; Pass in your credentials
-(hc/get "https://secure-url.com" {:ssl-context {:keystore (io/resource "somepath.p12") 
-                                                :keystore-pass "password"
-                                                :trust-store (io/resource "cacerts.p12"
-                                                :trust-store-pass "another-password")}})                                             
+(hc/get "https://secure-url.com" {:http-client {:ssl-context {:keystore (io/resource "somepath.p12") 
+                                                              :keystore-pass "password"
+                                                              :trust-store (io/resource "cacerts.p12"
+                                                              :trust-store-pass "another-password")}}})                                             
 
 ; Directly pass in an SSLContext that you made yourself
-(hc/get "https://secure-url.com" {:ssl-context SomeSSLContext})
+(hc/get "https://secure-url.com" {:http-client {:ssl-context SomeSSLContext}})
 ```
 
 ### Redirects
@@ -346,10 +324,10 @@ In addition, the 301 and 302 status codes cause a POST request to be converted t
 
 ```clojure
 ; Always redirect, except from HTTPS URLs to HTTP URLs
-(hc/get "http://moo.com" {:redirect-policy :normal})
+(hc/get "http://moo.com" {:http-client {:redirect-policy :normal}})
 
 ; Always redirect
-(hc/get "http://moo.com" {:redirect-policy :always})
+(hc/get "http://moo.com" {:http-client {:redirect-policy :always}})
 ```
 
 The Java HttpClient does not provide a direct option for max redirects. By default, it is 5.

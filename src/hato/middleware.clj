@@ -383,10 +383,8 @@
     ([req respond raise]
      (client (query-params-request req) respond raise))))
 
-(defn basic-auth-value [basic-auth]
-  (let [basic-auth (if (string? basic-auth)
-                     basic-auth
-                     (str (first basic-auth) ":" (second basic-auth)))]
+(defn basic-auth-value [{:keys [user pass]}]
+  (let [basic-auth (str user ":" pass)]
     (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes basic-auth "UTF-8")))))
 
 (defn- basic-auth-request
@@ -429,8 +427,8 @@
 
 (defn- user-info-request
   [req]
-  (if-let [[user password] (parse-user-info (:user-info req))]
-    (assoc req :basic-auth [user password])
+  (if-let [[user pass] (parse-user-info (:user-info req))]
+    (assoc req :basic-auth {:user user :pass pass})
     req))
 
 (defn wrap-user-info
@@ -605,22 +603,14 @@
 
 (defmethod decompress-body "gzip"
   [resp]
-  (-> resp
-      (update :body gunzip)
-      (assoc :orig-content-encoding (get-in resp [:headers "content-encoding"]))
-      (update :headers #(dissoc % "content-encoding"))))
+  (update resp :body gunzip))
 
 (defmethod decompress-body "deflate"
   [resp]
-  (-> resp
-      (update :body inflate)
-      (assoc :orig-content-encoding (get-in resp [:headers "content-encoding"]))
-      (update :headers #(dissoc % "content-encoding"))))
+  (update resp :body inflate))
 
 (defmethod decompress-body :default [resp]
-  (assoc resp
-         :orig-content-encoding
-         (get-in resp [:headers "content-encoding"])))
+  resp)
 
 (defn- decompression-request
   [req]
@@ -660,7 +650,6 @@
    wrap-url
 
    wrap-decompression
-   ;wrap-input-coercion ; handled by hato.client
    ;; put this before output-coercion, so additional charset
    ;; headers can be used if desired
    ;wrap-additional-header-parsing TODO

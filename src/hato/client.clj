@@ -2,9 +2,9 @@
   "Core implementation of an HTTP client wrapping JDK11's java.net.http.HttpClient."
   (:refer-clojure :exclude [get])
   (:require
-    [clojure.string :as str]
-    [hato.middleware :as middleware]
-    [clojure.java.io :as io])
+   [clojure.string :as str]
+   [hato.middleware :as middleware]
+   [clojure.java.io :as io])
   (:import
    (java.net.http
     HttpClient$Redirect
@@ -300,9 +300,9 @@
 
 (defn request*
   [{:keys [http-client async? as]
-    :as   req
-    :or   {http-client (build-http-client req)}} & [respond raise]]
-  (let [http-request (ring-request->HttpRequest req)
+    :as   req} & [respond raise]]
+  (let [http-client (if (instance? HttpClient http-client) http-client (build-http-client http-client))
+        http-request (ring-request->HttpRequest req)
         bh (->BodyHandler as)]
     (if-not async?
       (let [resp (.send http-client http-request bh)]

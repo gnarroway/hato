@@ -39,13 +39,8 @@
   (testing "with no basic-auth option"
     (is (not (contains? ((wrap-basic-auth identity) {}) :headers))))
 
-  (testing "with basic-auth string option"
-    (let [r ((wrap-basic-auth identity) {:basic-auth "user:pass"})]
-      (is (not (contains? r :basic-auth)))
-      (is (str/starts-with? (get-in r [:headers "authorization"]) "Basic"))))
-
-  (testing "with basic-auth list option"
-    (let [r ((wrap-basic-auth identity) {:basic-auth ["user" "pass"]})]
+  (testing "with basic-auth option"
+    (let [r ((wrap-basic-auth identity) {:basic-auth {:user "user" :pass "pass"}})]
       (is (not (contains? r :basic-auth)))
       (is (str/starts-with? (get-in r [:headers "authorization"]) "Basic")))))
 
@@ -64,7 +59,7 @@
 
   (testing "with oauth-token string option"
     (let [r ((wrap-user-info identity) {:user-info "user:pass"})]
-      (is (= ["user" "pass"] (:basic-auth r))))))
+      (is (= {:user "user" :pass "pass"} (:basic-auth r))))))
 
 (deftest test-wrap-url
   (testing "with no url option"

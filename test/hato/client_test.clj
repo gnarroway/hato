@@ -110,17 +110,20 @@
       (is (coll? (:body r))))))
 
 (deftest ^:integration test-auth
-  (testing "authenticator basic auth (non-preemptive)"
-    (let [r (get "https://httpbin.org/basic-auth/user/pass" {:authenticator {:user "user" :pass "pass"}})]
+  (testing "authenticator basic auth (non-preemptive) via client option"
+    (let [r (get "https://httpbin.org/basic-auth/user/pass" {:http-client {:authenticator {:user "user" :pass "pass"}}})]
       (is (= 200 (:status r))))
 
-    (is (thrown? Exception (get "https://httpbin.org/basic-auth/user/pass" {:basic-auth "invalid:pass"}))))
+    (is (thrown? Exception (get "https://httpbin.org/basic-auth/user/pass" {:http-client {:authenticator {:user "user" :pass "invalid"}}}))))
 
   (testing "basic auth"
-    (let [r (get "https://httpbin.org/basic-auth/user/pass" {:basic-auth "user:pass"})]
+    (let [r (get "https://httpbin.org/basic-auth/user/pass" {:basic-auth {:user "user" :pass "pass"}})]
       (is (= 200 (:status r))))
 
-    (is (thrown? Exception (get "https://httpbin.org/basic-auth/user/pass" {:basic-auth "invalid:pass"})))))
+    (let [r (get "https://user:pass@httpbin.org/basic-auth/user/pass" {})]
+      (is (= 200 (:status r))))
+
+    (is (thrown? Exception (get "https://httpbin.org/basic-auth/user/pass" {:basic-auth {:user "user" :pass "invalid"}})))))
 
 (deftest ^:integration test-redirects
   (let [redirect-to "https://httpbin.org/get"
@@ -136,34 +139,34 @@
         (is (= uri (:uri r)))))
 
     (testing "always redirect"
-      (let [r (get uri {:as :string :redirect-policy :always})]
+      (let [r (get uri {:as :string :http-client {:redirect-policy :always}})]
         (is (= 200 (:status r)))
         (is (= redirect-to (:uri r)))))
 
     (testing "normal redirect (same protocol)"
-      (let [r (get uri {:as :string :redirect-policy :normal})]
+      (let [r (get uri {:as :string :http-client {:redirect-policy :normal}})]
         (is (= 200 (:status r)))
         (is (= redirect-to (:uri r)))))
 
     (testing "normal redirect (not same protocol)"
       (let [https-tp-http-uri (format "https://httpbin.org/redirect-to?url=%s" "http://httpbin.org/get")
-            r (get https-tp-http-uri {:as :string :redirect-policy :normal})]
+            r (get https-tp-http-uri {:as :string :http-client {:redirect-policy :normal}})]
         (is (= 302 (:status r)))
         (is (= https-tp-http-uri (:uri r)))))
 
     (testing "default max redirects"
-      (are [status redirects] (= status (:status (get (str "https://httpbin.org/redirect/" redirects) {:redirect-policy :normal})))
+      (are [status redirects] (= status (:status (get (str "https://httpbin.org/redirect/" redirects) {:http-client {:redirect-policy :normal}})))
         200 4
         302 5))))
 
 (deftest ^:integration test-cookies
   (testing "no cookie manager"
-    (let [r (get "https://httpbin.org/cookies/set/moo/cow" {:as :json :redirect-policy :always})]
+    (let [r (get "https://httpbin.org/cookies/set/moo/cow" {:as :json :http-client {:redirect-policy :always}})]
       (is (= 200 (:status r)))
       (is (nil? (-> r :body :cookies :moo)))))
 
   (testing "no cookie manager"
-    (let [r (get "https://httpbin.org/cookies/set/moo/cow" {:as :json :redirect-policy :always :cookie-policy :all})]
+    (let [r (get "https://httpbin.org/cookies/set/moo/cow" {:as :json :http-client {:redirect-policy :always :cookie-policy :all}})]
       (is (= 200 (:status r)))
       (is (= "cow" (-> r :body :cookies :moo)))))
 
@@ -194,6 +197,11 @@
     (let [r (get "https://httpbin.org/deflate" {:as :stream})]
       (is (= 200 (:status r)))
       (is (instance? InputStream (:body r))))))
+
+(deftest ^:integration test-http2
+  (testing "can make an http2 request"
+    (let [r (get "https://nghttp2.org/httpbin/get" {:as :json})]
+      (is (= :http-2 (:version r))))))
 
 (comment
   (run-tests))
