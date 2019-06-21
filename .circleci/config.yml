@@ -12,7 +12,7 @@ jobs:
       - image: circleci/clojure:openjdk-11-lein
     steps:
       - checkout
-      - run: lein deploy
+      - run: lein deploy clojars
 
   publish-release:
     docker:
