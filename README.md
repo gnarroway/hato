@@ -37,7 +37,7 @@ Require it to get started and make a request:
 (ns my.app
   (:require [hato.client :as hc]))
   
-  (hc/get "https://httpbin.org/get" {})
+  (hc/get "https://httpbin.org/get")
   ; =>
   ; {:request-time 112
   ;  :status 200
@@ -61,7 +61,7 @@ This can be done with `build-http-client`:
 
 ; Use it for multiple requests
 (hc/get "https://httpbin.org/get" {:http-client c})
-(hc/get "https://httpbin.org/get?again" {:http-client c})
+(hc/head "https://httpbin.org/head" {:http-client c})
 ```
 
 #### build-http-client options
@@ -75,15 +75,14 @@ This can be done with `build-http-client`:
 `cookie-handler` a [`java.net.CookieHandler`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/CookieHandler.html)
   if you need full control of your cookies. See `cookie-policy` for a more convenient option.
 
-`cookie-policy` Can be used to construct a [`java.net.CookieManager`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/CookieManager.html)
-  (a type of CookieHandler). However, the `cookie-handler` option will take precedence if it is set. 
+`cookie-policy` Determines whether to accept cookies. The `cookie-handler` option will take precedence if it is set. 
   If an invalid option is provided, a CookieManager with the default policy (original-server) 
   will be created. Valid options:
 
  - `:none` Accepts no cookies
  - `:all`  Accepts all cookies
  - `:original-server` (default) Accepts cookies from original server
- - An implementation of [`java.net.CookiePolicy`](https://docs.oracle.com/javase/7/docs/api/java/net/CookiePolicy.html).
+ - An implementation of [`java.net.CookiePolicy`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/CookiePolicy.html).
 
 `connect-timeout` Timeout to making a connection, in milliseconds (default: unlimited).
 
@@ -121,18 +120,19 @@ request and returns a response. Convenience wrappers are provided for the http v
 
 ```clojure
 ; The main request function
-(hc/request {:method :get, :url "http://moo.com"})
+(hc/request {:method :get, :url "https://httpbin.org/get"})
 
 ; Convenience wrappers
-(hc/get "http://moo.com" {})
-(hc/post "http://moo.com" {:body "cow"})
+(hc/get "https://httpbin.org/get")
+(hc/get "https://httpbin.org/get" {:as :json})
+(hc/post "https://httpbin.org/post" {:body "{\"a\": 1}" :content-type :json})
 ```
 
 #### request options
 
 `method`Lowercase keyword corresponding to a HTTP request method, such as :get or :post. 
 
-`url` An absolute url to the requested resource (e.g. "http://moo.com/api/1").
+`url` An absolute url to the requested resource (e.g. `"http://moo.com/api/1"`).
  
 `accept` Sets the `accept` header. a keyword (e.g. `:json`, for any application/* type) or string (e.g. `"text/html"`) for anything else. 
   
@@ -142,14 +142,15 @@ request and returns a response. Convenience wrappers are provided for the http v
 `content-type` a keyword (e.g. `:json`, for any application/* type) or string (e.g. "text/html") for anything else. 
   Sets the appropriate header.
   
-`body` the body of the request. This should be a string, byte array, or input stream. Note that clojure data
-  is not automatically coerced to string e.g. sending a json body will require generating
+`body` the body of the request. This should be a string, byte array, input stream, 
+  or a [`java.net.http.HttpRequest$BodyPublisher`](https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpRequest.BodyPublisher.html).
+  Note that clojure data is not automatically coerced to string e.g. sending a json body will require generating
   a json string via [cheshire](https://github.com/dakrone/cheshire) or other means.
   
 `as` Return response body in a certain format. Valid options:
 
   - Return an object type: `:string` (default), `:byte-array`, `:stream`, `:discarding`,
-  - Coerce response body from a certain format: `:json`, `:json-string-keys`,
+  - Coerce response body with certain format: `:json`, `:json-string-keys`,
   `:json-strict`, `:json-strict-string-keys`, `:clojure`, `:transit+json`, `:transit+msgpack`. JSON and transit
   coercion require optional dependencies [cheshire](https://github.com/dakrone/cheshire) and
   [com.cognitect/transit-clj](https://github.com/cognitect/transit-clj) to be installed, respectively.
@@ -210,19 +211,19 @@ to give you promise chains etc.
 
 Alternatively, callbacks can be used by passing in `respond` and `raise` functions, in which case
 the [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) 
-returned can be used to indicate when processing has completed.
+returned can be used to indicate when processing has completed. 
 
 ```clojure
 ; A standard synchronous request
-(hc/get "http://moo.com" {})
+(hc/get "https://httpbin.org/get")
 
 ; An async request
-(hc/get "http://moo.com" {:async? true})
+(hc/get "https://httpbin.org/get" {:async? true})
 ; =>
 ; #object[jdk.internal.net.http.common.MinimalFuture...
 
 ; Deref it to get the value87
-(-> @(hc/get "https://httpbin.org/get" {:as :json :async? true})
+(-> @(hc/get "https://httpbin.org/get" {:async? true})
     :body)
 ; =>
 ; { ...some json body }
@@ -239,6 +240,13 @@ returned can be used to indicate when processing has completed.
 (future-done? *1)
 ; =>
 ; true
+
+; Exceptional status codes by default will call raise with an ex-info containing the response map.
+; This means we can use ex-data to get the data back out. 
+@(hc/get "https://httpbin.org/status/400" {:async? true} identity #(-> % ex-data :status))
+; =>
+; 400
+
 ```
 
 ### Making queries

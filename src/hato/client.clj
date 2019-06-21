@@ -18,7 +18,8 @@
    (java.security KeyStore)
    (java.time Duration)
    (java.util.function Function)
-   (java.io File)))
+   (java.io File)
+   (clojure.lang ExceptionInfo)))
 
 (defn- ->Authenticator
   [v]
@@ -55,20 +56,18 @@
   "Returns a BodyPublisher.
 
   If not provided a BodyPublisher explicitly, tries to create one
-  based on the request (mostly the type of the body).
+  based on the request.
 
   Defaults to a string publisher if nothing matches.
 
   https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpRequest.BodyPublisher.html"
-  [{:keys [body content-type] :as req}]
+  [{:keys [body]}]
   (if (instance? HttpRequest$BodyPublisher body)
     body
     (cond
       (nil? body) (HttpRequest$BodyPublishers/noBody)
       (bytes? body) (HttpRequest$BodyPublishers/ofByteArray body)
       (instance? File body) (HttpRequest$BodyPublishers/ofFile (.toPath body))
-      (and (= :json content-type)
-           (coll? body)) (HttpRequest$BodyPublishers/ofString (middleware/json-encode body))
       :else (HttpRequest$BodyPublishers/ofString body))))
 
 (defn- ->ProxySelector
@@ -163,14 +162,12 @@
    :http-client http-client
    :request     (assoc request :http-request (.request response))})
 
-;;;
-
 (def cookie-policies
   {:none            (CookiePolicy/ACCEPT_NONE)
    :all             (CookiePolicy/ACCEPT_ALL)
    :original-server (CookiePolicy/ACCEPT_ORIGINAL_SERVER)})
 
-(defn cookie-manager
+(defn- cookie-manager
   "Creates a CookieManager.
 
   `cookie-policy` maps to a CookiePolicy, accepting :all, :none, :original-server (default), or a CookiePolicy implementation.
@@ -187,6 +184,8 @@
         (if-let [cp (cookie-policies cookie-policy)]
           (doto cm (.setCookiePolicy cp))
           cm)))))
+
+;;;
 
 (defn build-http-client
   "Creates an HttpClient from an option map.
@@ -211,8 +210,7 @@
            proxy
            ssl-context
            ssl-parameters
-           version]
-    :as   opts}]
+           version]}]
   (let [builder (HttpClient/newBuilder)]
     (when authenticator
       (when-let [a (->Authenticator authenticator)]
@@ -323,13 +321,16 @@
           (.exceptionally
            (reify Function
              (apply [_ e]
-               (raise e))))))))
+               (let [cause (.getCause e)]
+                 (if (instance? ExceptionInfo cause)
+                   (raise cause)
+                   (raise e))))))))))
 
 (def request (middleware/wrap-request request*))
 
 (defn- configure-and-execute
   "Convenience wrapper"
-  [method url {:keys [async?] :as opts} & [respond raise]]
+  [method url & [{:keys [async?] :as opts} respond raise]]
   (if-not async?
     (request (merge opts {:request-method method :url url}))
     (request (merge opts {:request-method method :url url}) (or respond identity) (or raise identity))))

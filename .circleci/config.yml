@@ -20,9 +20,6 @@ workflows:
   build-publish:
     jobs:
       - build:
-          filters:  # required since `publish` has tag filters AND requires `build`
-            tags:
-              only: /.*/
       - publish:
           requires:
             - build

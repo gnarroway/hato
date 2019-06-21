@@ -4,7 +4,7 @@
             [hato.client :refer :all]
             [clojure.java.io :as io])
   (:import (java.io InputStream)
-           (java.net ProxySelector CookieHandler Authenticator)
+           (java.net ProxySelector CookieHandler Authenticator CookieManager)
            (java.net.http HttpClient$Redirect HttpClient$Version HttpClient)
            (java.time Duration)
            (javax.net.ssl SSLContext)))
@@ -29,7 +29,7 @@
       :any-random-thing                              ; Invalid values are ignored, so the default :original-server will be in effect
       )
 
-    (let [cm (cookie-manager :none)]
+    (let [cm (CookieManager.)]
       (is (= cm (-> (build-http-client {:cookie-handler cm :cookie-policy :all}) (.cookieHandler) (.get)))
           ":cookie-handler takes precedence over :cookie-policy")))
 
@@ -70,25 +70,51 @@
     (is (thrown? Exception (build-http-client {:version :not-valid-value})))))
 
 (deftest ^:integration test-basic-response
-  (testing "basic get request"
-    (let [r (get "https://httpbin.org/get" {:as :json})]
+  (testing "basic get request returns response map"
+    (let [r (get "https://httpbin.org/get")]
       (is (pos-int? (:request-time r)))
       (is (= 200 (:status r)))
       (is (= "https://httpbin.org/get" (:uri r)))
       (is (= :http-1.1 (:version r)))
       (is (= :get (-> r :request :request-method)))
-      (is (= "gzip, deflate" (get-in r [:request :headers "accept-encoding"]))))))
+      (is (= "gzip, deflate" (get-in r [:request :headers "accept-encoding"])))))
+
+  (testing "verbs exist"
+    (are [fn] (= 200 (:status (fn "https://httpbin.org/status/200")))
+      get
+      post
+      put
+      patch
+      delete
+      head
+      options)))
+
+(deftest ^:integration test-basic-response-async
+  (testing "basic get request returns response map"
+    (let [r @(get "https://httpbin.org/get" {:async? true})]
+      (is (pos-int? (:request-time r)))
+      (is (= 200 (:status r)))
+      (is (= "https://httpbin.org/get" (:uri r)))
+      (is (= :http-1.1 (:version r)))
+      (is (= :get (-> r :request :request-method)))
+      (is (= "gzip, deflate" (get-in r [:request :headers "accept-encoding"])))))
+
+  (testing "callback"
+    (is (= 200 @(get "https://httpbin.org/status/200" {:async? true} :status identity))
+        "returns status on success")
+    (is (= 400 @(get "https://httpbin.org/status/400" {:async? true} identity #(-> % ex-data :status)))
+        "extracts response map from ex-info on fail")))
 
 (deftest ^:integration test-exceptions
   (testing "throws on exceptional status"
-    (is (thrown? Exception (get "https://httpbin.org/status/500" {}))))
+    (is (thrown? Exception (get "https://httpbin.org/status/500"))))
 
   (testing "can opt out"
     (is (= 500 (:status (get "https://httpbin.org/status/500" {:throw-exceptions false}))))))
 
 (deftest ^:integration test-coercions
   (testing "as default"
-    (let [r (get "https://httpbin.org/get" {})]
+    (let [r (get "https://httpbin.org/get")]
       (is (string? (:body r)))))
 
   (testing "as byte array"
@@ -120,7 +146,7 @@
     (let [r (get "https://httpbin.org/basic-auth/user/pass" {:basic-auth {:user "user" :pass "pass"}})]
       (is (= 200 (:status r))))
 
-    (let [r (get "https://user:pass@httpbin.org/basic-auth/user/pass" {})]
+    (let [r (get "https://user:pass@httpbin.org/basic-auth/user/pass")]
       (is (= 200 (:status r))))
 
     (is (thrown? Exception (get "https://httpbin.org/basic-auth/user/pass" {:basic-auth {:user "user" :pass "invalid"}})))))
@@ -165,7 +191,7 @@
       (is (= 200 (:status r)))
       (is (nil? (-> r :body :cookies :moo)))))
 
-  (testing "no cookie manager"
+  (testing "with cookie manager"
     (let [r (get "https://httpbin.org/cookies/set/moo/cow" {:as :json :http-client {:redirect-policy :always :cookie-policy :all}})]
       (is (= 200 (:status r)))
       (is (= "cow" (-> r :body :cookies :moo)))))
