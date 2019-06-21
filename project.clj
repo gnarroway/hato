@@ -1,4 +1,4 @@
-(defproject hato "0.1.0-SNAPSHOT"
+(defproject hato "0.1.1-SNAPSHOT"
   :description "An HTTP client for Clojure, wrapping JDK 11's HttpClient."
   :url "https://github.com/gnarroway/hato"
   :license {:name         "The MIT License"
@@ -8,14 +8,6 @@
                                       :username      :env/clojars_user
                                       :password      :env/clojars_pass
                                       :sign-releases false}]]
-  :release-tasks [["vcs" "assert-committed"]
-                  ["change" "version" "leiningen.release/bump-version" "release"]
-                  ["vcs" "commit"]
-                  ["vcs" "tag" "v" "--no-sign"] ; disable signing and add "v" prefix
-                  ["deploy" "clojars"]
-                  ["change" "version" "leiningen.release/bump-version"]
-                  ["vcs" "commit"]
-                  ["vcs" "push"]]
   :plugins [[lein-cljfmt "0.6.4"]]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.10.1"]
                                   [cheshire "5.8.1"]

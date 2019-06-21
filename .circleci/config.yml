@@ -14,15 +14,6 @@ jobs:
       - checkout
       - run: lein deploy clojars
 
-  publish-release:
-    docker:
-      - image: circleci/clojure:openjdk-11-lein
-    steps:
-      - checkout
-      - run: git config --global user.email "george.narroway@me.com"
-      - run: git config --global user.name "George Narroway"
-      - run: lein release :minor
-
 
 workflows:
   version: 2
@@ -35,10 +26,3 @@ workflows:
           filters:
             branches:
               only: master
-      - promote:
-          type: approval
-          requires:
-            - publish-snapshot
-      - publish-release:
-          requires:
-            - promote
