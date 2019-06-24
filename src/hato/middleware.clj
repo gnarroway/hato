@@ -3,7 +3,8 @@
   (:require
    [clojure.edn :as edn]
    [clojure.java.io :as io]
-   [clojure.string :as str])
+   [clojure.string :as str]
+   [clojure.walk :refer [prewalk]])
   (:import
    (java.util
     Base64)
@@ -638,10 +639,56 @@
              #(respond (decompression-response req %))
              raise))))
 
+(defn- nest-params
+  [request param-key]
+  (if-let [params (request param-key)]
+    (assoc request param-key
+                   (prewalk
+                     #(if (and (vector? %) (map? (second %)))
+                        (let [[fk m] %]
+                          (reduce
+                            (fn [m [sk v]]
+                              (assoc m (str (name fk) "[" (name sk) "]") v))
+                            {}
+                            m))
+                        %)
+                     params))
+    request))
+
+(defn nest-params-request
+  "Middleware wrapping nested parameters for query strings."
+  [{:keys [content-type flatten-nested-keys] :as req}]
+  (when (and (some? flatten-nested-keys)
+             (or (some? (opt req :ignore-nested-query-string))
+                 (some? (opt req :flatten-nested-form-params))))
+    (throw (IllegalArgumentException.
+             (str "only :flatten-nested-keys or :ignore-nested-query-string/"
+                  ":flatten-nested-form-params may be specified, not both"))))
+  (let [form-urlencoded? (or (nil? content-type)
+                             (= content-type :x-www-form-urlencoded))
+        flatten-form? (opt req :flatten-nested-form-params)
+        nested-keys (or flatten-nested-keys
+                        (cond-> []
+                                (not (opt req :ignore-nested-query-string))
+                                (conj :query-params)
+
+                                (and form-urlencoded?
+                                     (true? flatten-form?))
+                                (conj :form-params)))]
+    (reduce nest-params req nested-keys)))
+
+(defn wrap-nested-params
+  "Middleware wrapping nested parameters for query strings."
+  [client]
+  (fn
+    ([req]
+     (client (nest-params-request req)))
+    ([req respond raise]
+     (client (nest-params-request req) respond raise))))
+
 (def default-middleware
   "The default list of middleware hato uses for wrapping requests."
   [wrap-request-timing
-   ;wrap-header-map
 
    wrap-query-params
    wrap-basic-auth
@@ -650,17 +697,13 @@
    wrap-url
 
    wrap-decompression
-   ;; put this before output-coercion, so additional charset
-   ;; headers can be used if desired
-   ;wrap-additional-header-parsing TODO
    wrap-output-coercion
    wrap-exceptions
    wrap-accept
    wrap-accept-encoding
    wrap-content-type
    wrap-form-params
-   ;wrap-nested-params TODO
-   ;wrap-flatten-nested-params TODO
+   wrap-nested-params
    wrap-method])
 
 (defn wrap-request

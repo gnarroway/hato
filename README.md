@@ -14,7 +14,7 @@ still allowing the underlying HttpClient to be configured via native Java object
 
 ## Status
 
-hato is under active development. Once it has stabilized to a reasonable degree, a release will be published to clojars.
+hato is under active development. Pre-1.0.0 releases should be considered alpha, and the API is subject to change.
 
 ## Installation
 
@@ -23,7 +23,7 @@ hato requires JDK 11 and above. If you are running an older vesion of Java, plea
 For Leinengen, add this to your project.clj
 
 ```clojure
-[hato "0.1.0-SNAPSHOT"]
+[hato "0.1.0"]
 ```
 
 ## Quickstart
@@ -263,7 +263,41 @@ hato can generate url encoded query strings in multiple ways
 ; Values are urlencoded
 (hc/get "http://moo.com" {:query-params {:q "a-space and-some-chars$&!"}})
 ; Generates query: "q=a-space+and-some-chars%24%26%21"
+
+; Nested params are flattened by default
+(hc/get "http://moo.com" {:query-params {:a {:b {:c 5} :e {:f 6}}}})
+; => "a[b][c]=5&a[e][f]=6", url encoded
+
+; Flattening can be disabled
+(hc/get "http://moo.com" {:query-params {:a {:b {:c 5} :e {:f 6}}} :ignore-nested-query-string true})
+; => "a={:b {:c 5}, :e {:f 6}}", url encoded
 ```
+
+Form parameters can also be passed as a map:
+
+```clojure
+(hc/post "http://moo.com" {:form-params {:hello "world"}})
+
+; Nested params are not flattened by default
+; Sends a body of "a={:b {:c 5}, :e {:f 6}}", x-www-form-urlencoded
+(hc/post "http://moo.com" {:form-params {:a {:b {:c 5} :e {:f 6}}}})
+
+; Flattening can be enabled
+; Sends a body of "a[b][c]=5&a[e][f]=6", url encoded
+(hc/post "http://moo.com" {:form-params {:a {:b {:c 5} :e {:f 6}}}
+                           :flatten-nested-form-params true})
+```
+
+As a convenience, nesting can also be controlled by `:flatten-nested-keys`:
+```clojure
+
+; Flattens both query and form params
+(hc/post "http://moo.com" {... :flatten-nested-keys [:query-params :form-params]})
+
+; Flattens only query params
+(hc/post "http://moo.com" {... :flatten-nested-keys [:query-params]})
+```
+
 
 
 ### Output coercion

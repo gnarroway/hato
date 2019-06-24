@@ -4,8 +4,9 @@
             [hato.middleware :refer :all]
             [clojure.java.io :as io])
   (:import (java.util.zip
-            GZIPOutputStream)
-           (java.io ByteArrayOutputStream ByteArrayInputStream)))
+             GZIPOutputStream)
+           (java.io ByteArrayOutputStream ByteArrayInputStream)
+           (java.net URLDecoder)))
 
 (deftest test-wrap-request-timing
   (let [r ((wrap-request-timing (fn [x] (Thread/sleep 1) x)) {})]
@@ -35,14 +36,53 @@
         "a[0]=1&a[1]=2" :indexed
         "a[]=1&a[]=2" :array))))
 
+(deftest test-wrap-nested-params
+  (let [params {:a {:b {:c 5} :e {:f 6}}}
+        flattened {"a[b][c]" 5, "a[e][f]" 6}]
+
+    (testing "query params"
+      (testing "nests by default"
+        (is (= flattened (:query-params ((wrap-nested-params identity) {:query-params params})))))
+
+      (testing "can be disabled"
+        (is (= params (:query-params ((wrap-nested-params identity) {:query-params params :ignore-nested-query-string true})))))
+
+      (testing "can be enabled with flatten-nested-keys"
+        (is (= flattened (:query-params ((wrap-nested-params identity) {:query-params params :flatten-nested-keys [:query-params]})))))
+
+      (testing "throws if multiple methods specified"
+        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:query-params params
+                                                                              :ignore-nested-query-string true
+                                                                              :flatten-nested-keys [:query-params]})))))
+
+    (testing "form params"
+      (testing "does not nest by default"
+        (is (= params (:form-params ((wrap-nested-params identity) {:form-params params})))))
+
+      (testing "can be enabled"
+        (is (= flattened (:form-params ((wrap-nested-params identity) {:form-params params :flatten-nested-form-params true})))))
+
+      (testing "can be enabled with flatten-nested-keys"
+        (is (= flattened (:form-params ((wrap-nested-params identity) {:form-params params :flatten-nested-keys [:form-params]})))))
+
+      (testing "throws if multiple methods specified"
+        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:form-params params
+                                                                              :flatten-nested-form-params true
+                                                                              :flatten-nested-keys [:form-params]})))))))
+
 (deftest test-wrap-basic-auth
+  (testing "encoding"
+    (is (= "Basic dXNlcm5hbWU6cGFzc3dvcmQ=" (basic-auth-value {:user "username" :pass "password"})))
+    (is (= "Basic dXNlcm5hbWU6" (basic-auth-value {:user "username"})))
+    (is (= "Basic Og==" (basic-auth-value {}))))
+
   (testing "with no basic-auth option"
     (is (not (contains? ((wrap-basic-auth identity) {}) :headers))))
 
   (testing "with basic-auth option"
-    (let [r ((wrap-basic-auth identity) {:basic-auth {:user "user" :pass "pass"}})]
+    (let [r ((wrap-basic-auth identity) {:basic-auth {:user "username" :pass "password"}})]
       (is (not (contains? r :basic-auth)))
-      (is (str/starts-with? (get-in r [:headers "authorization"]) "Basic")))))
+      (is (= (get-in r [:headers "authorization"]))))))
 
 (deftest test-wrap-oauth
   (testing "with no oauth-token option"
