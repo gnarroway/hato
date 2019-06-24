@@ -7,7 +7,7 @@ jobs:
       - checkout
       - run: lein test
 
-  publish-snapshot:
+  publish:
     docker:
       - image: circleci/clojure:openjdk-11-lein
     steps:
@@ -20,7 +20,7 @@ workflows:
   build-publish:
     jobs:
       - build
-      - publish-snapshot:
+      - publish:
           requires:
             - build
           filters:
