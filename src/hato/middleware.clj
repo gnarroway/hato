@@ -643,16 +643,16 @@
   [request param-key]
   (if-let [params (request param-key)]
     (assoc request param-key
-                   (prewalk
-                     #(if (and (vector? %) (map? (second %)))
-                        (let [[fk m] %]
-                          (reduce
-                            (fn [m [sk v]]
-                              (assoc m (str (name fk) "[" (name sk) "]") v))
-                            {}
-                            m))
-                        %)
-                     params))
+           (prewalk
+            #(if (and (vector? %) (map? (second %)))
+               (let [[fk m] %]
+                 (reduce
+                  (fn [m [sk v]]
+                    (assoc m (str (name fk) "[" (name sk) "]") v))
+                  {}
+                  m))
+               %)
+            params))
     request))
 
 (defn nest-params-request
@@ -662,19 +662,19 @@
              (or (some? (opt req :ignore-nested-query-string))
                  (some? (opt req :flatten-nested-form-params))))
     (throw (IllegalArgumentException.
-             (str "only :flatten-nested-keys or :ignore-nested-query-string/"
-                  ":flatten-nested-form-params may be specified, not both"))))
+            (str "only :flatten-nested-keys or :ignore-nested-query-string/"
+                 ":flatten-nested-form-params may be specified, not both"))))
   (let [form-urlencoded? (or (nil? content-type)
                              (= content-type :x-www-form-urlencoded))
         flatten-form? (opt req :flatten-nested-form-params)
         nested-keys (or flatten-nested-keys
                         (cond-> []
-                                (not (opt req :ignore-nested-query-string))
-                                (conj :query-params)
+                          (not (opt req :ignore-nested-query-string))
+                          (conj :query-params)
 
-                                (and form-urlencoded?
-                                     (true? flatten-form?))
-                                (conj :form-params)))]
+                          (and form-urlencoded?
+                               (true? flatten-form?))
+                          (conj :form-params)))]
     (reduce nest-params req nested-keys)))
 
 (defn wrap-nested-params

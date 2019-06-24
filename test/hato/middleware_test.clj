@@ -4,7 +4,7 @@
             [hato.middleware :refer :all]
             [clojure.java.io :as io])
   (:import (java.util.zip
-             GZIPOutputStream)
+            GZIPOutputStream)
            (java.io ByteArrayOutputStream ByteArrayInputStream)
            (java.net URLDecoder)))
 

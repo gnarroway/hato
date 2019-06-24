@@ -45,7 +45,7 @@ Require it to get started and make a request:
   ;  ...}
 ```
 
-## Usage
+## Usagep
 
 ### Building a client
 
