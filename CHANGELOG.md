@@ -7,8 +7,8 @@ All notable changes to this project will be documented in this file. This change
 
 ## [0.3.0] - 2019-07-01
 ### Added
-- Support custom middleware (#2). This makes it easier for users to make their own request function
-from some stack of middleware.
+- Support custom middleware ([#2](https://github.com/gnarroway/hato/issues/2)). This makes it easier for 
+users to make their own request function from some stack of middleware.
 
 ## 0.2.0 - 2019-06-24
 ### Added
