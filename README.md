@@ -144,8 +144,7 @@ request and returns a response. Convenience wrappers are provided for the http v
   
 `body` the body of the request. This should be a string, byte array, input stream, 
   or a [`java.net.http.HttpRequest$BodyPublisher`](https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpRequest.BodyPublisher.html).
-  Note that clojure data is not automatically coerced to string e.g. sending a json body will require generating
-  a json string via [cheshire](https://github.com/dakrone/cheshire) or other means.
+  To send a clojure map as json (or some other format), use the `form-params` option with the appropriate `content-type`.
   
 `as` Return response body in a certain format. Valid options:
 
@@ -162,6 +161,10 @@ request and returns a response. Convenience wrappers are provided for the http v
   This presently only has an effect for json coercions.
   
 `query-params` A map of options to turn into a query string. See usage examples for details.
+
+`form-params` A map of options that will be sent as the body, depending on the `content-type` option. For example,
+  set `:content-type :json` to coerce the form-params to a json string (requires [cheshire](https://github.com/dakrone/cheshire)).
+  See usage examples for details.
 
 `multi-param-style` Decides how to represent array values when converting `query-params` into a query string. Accepts:
   
@@ -246,7 +249,6 @@ returned can be used to indicate when processing has completed.
 @(hc/get "https://httpbin.org/status/400" {:async? true} identity #(-> % ex-data :status))
 ; =>
 ; 400
-
 ```
 
 ### Making queries
@@ -278,6 +280,9 @@ Form parameters can also be passed as a map:
 ```clojure
 (hc/post "http://moo.com" {:form-params {:hello "world"}})
 
+; Send a json body "{\"a\": {\"b\": 5}}"
+(hc/post "http://moo.com" {:form-params {:a {:b 5}} :content-type :json})
+
 ; Nested params are not flattened by default
 ; Sends a body of "a={:b {:c 5}, :e {:f 6}}", x-www-form-urlencoded
 (hc/post "http://moo.com" {:form-params {:a {:b {:c 5} :e {:f 6}}}})
@@ -289,15 +294,14 @@ Form parameters can also be passed as a map:
 ```
 
 As a convenience, nesting can also be controlled by `:flatten-nested-keys`:
-```clojure
 
+```clojure
 ; Flattens both query and form params
 (hc/post "http://moo.com" {... :flatten-nested-keys [:query-params :form-params]})
 
 ; Flattens only query params
 (hc/post "http://moo.com" {... :flatten-nested-keys [:query-params]})
 ```
-
 
 
 ### Output coercion
@@ -377,6 +381,67 @@ To change this, set the java option to e.g. `-Djdk.httpclient.redirects.retrylim
 
 The client does not throw an exception if the retry limit has been breached. Instead, 
 it will return a response with the redirect status code (30x) and empty body.
+
+
+### Custom middleware
+
+hato has a stack of middleware that it applies by default if you use the built in request function. You can
+supply different middleware by using `wrap-request` yourself:
+
+```clojure
+; Using the default middleware
+(hc/request {:url "https://httpbin.org/get" :method :get})
+
+; With convenience method
+(hc/get "https://httpbin.org/get")
+  
+; Let's write an access log middleware
+
+; Define a new middleware
+(defn log-and-return
+    [resp]
+    (println :access-log (:uri resp) (:status resp) (:request-time resp))
+    resp)
+  
+(defn wrap-log
+  [client]
+  (fn
+    ([req]
+     (let [resp (client req)]
+       (log-and-return resp)))
+    ([req respond raise]
+     (client req
+             #(respond (log-and-return %))
+             raise))))
+
+; Create your own middleware stack.
+; Note that ordering is important here:
+; - After wrap-request-timing so :request-time is available on the response
+; - Before wrap-exceptions so that exceptional responses have not yet caused an exception to be thrown
+(def my-middleware (concat [(first hm/default-middleware) wrap-log] (drop 1 hm/default-middleware)))
+
+; Create your own request wrapper with the new middleware
+(def my-request (hm/wrap-request request* my-middleware))
+
+; Add your own convenience methods if you desire
+(defn my-get
+  [url opts]
+  (-> (my-request (merge opts {:url url :method :get}))
+      :body))
+
+; Now it logs
+(my-request {:url "https://httpbin.org/get" :method :get})
+; :access-log https://httpbin.org/get 200 1069
+; => Returns response map
+
+(my-request {:url "https://httpbin.org/status/404" :method :get})
+; :access-log https://httpbin.org/status/404 404 1924
+; ...Throws some ExceptionInfo
+
+(my-get "https://httpbin.org/get" {})
+; :access-log https://httpbin.org/get 200 1069
+; => Returns string body
+```
 
 ### Debugging
 

@@ -1,12 +1,10 @@
 (ns hato.middleware-test
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
-            [hato.middleware :refer :all]
-            [clojure.java.io :as io])
+            [hato.middleware :refer :all])
   (:import (java.util.zip
             GZIPOutputStream)
-           (java.io ByteArrayOutputStream ByteArrayInputStream)
-           (java.net URLDecoder)))
+           (java.io ByteArrayOutputStream ByteArrayInputStream)))
 
 (deftest test-wrap-request-timing
   (let [r ((wrap-request-timing (fn [x] (Thread/sleep 1) x)) {})]
@@ -290,7 +288,14 @@
   (testing "returns a response after passing through all the default middleware"
     (let [r ((wrap-request (constantly {:body (.getBytes "s") :status 200})) {:as :string})]
       (is (= "s" (:body r)))
-      (is (number? (:request-time r))))))
+      (is (number? (:request-time r)))))
+
+  (testing "can supply custom middleware"
+    (let [some-middleware (fn [client] (fn [req] (let [r (client req)] (assoc r :body-length (count (:body r))))))
+          client (constantly {:body (.getBytes "s") :status 200})
+          resp ((wrap-request client (conj default-middleware some-middleware)) {:as :string})]
+      (is (= "s" (:body resp)))
+      (is (= 1 (:body-length resp))))))
 
 (comment
   (run-tests))

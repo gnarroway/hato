@@ -710,8 +710,9 @@
   "Returns a batteries-included HTTP request function corresponding to the given
   core client. See default-middleware for the middleware wrappers that are used
   by default"
-  [request]
-  (reduce (fn [request middleware]
-            (middleware request))
-          request
-          default-middleware))
+  ([request]
+   (wrap-request request default-middleware))
+  ([request middleware]
+   (reduce (fn [req m] (m req))
+           request
+           middleware)))
