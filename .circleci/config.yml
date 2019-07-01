@@ -6,6 +6,7 @@ jobs:
     steps:
       - checkout
       - run: lein test
+      - run: lein jar
       - persist_to_workspace:
           root: .
           paths: target
