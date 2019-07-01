@@ -6,20 +6,12 @@ jobs:
     steps:
       - checkout
       - run: lein test
-      - run: lein jar
-      - run: ls -la target
-      - persist_to_workspace:
-          root: .
-          paths: target
 
   publish:
     docker:
       - image: circleci/clojure:openjdk-11-lein
     steps:
       - checkout
-      - attach_workspace:
-          at: ~/project
-      - run: ls -la target
       - run: lein deploy clojars
 
 
