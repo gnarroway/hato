@@ -421,7 +421,7 @@ supply different middleware by using `wrap-request` yourself:
 (def my-middleware (concat [(first hm/default-middleware) wrap-log] (drop 1 hm/default-middleware)))
 
 ; Create your own request wrapper with the new middleware
-(def my-request (hm/wrap-request request* my-middleware))
+(def my-request (hm/wrap-request hc/request* my-middleware))
 
 ; Add your own convenience methods if you desire
 (defn my-get
