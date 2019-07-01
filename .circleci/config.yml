@@ -18,7 +18,7 @@ jobs:
     steps:
       - checkout
       - attach_workspace:
-          at: ~/project/target
+          at: ~/project
       - run: ls -la target
       - run: lein deploy clojars
 
