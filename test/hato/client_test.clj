@@ -79,6 +79,13 @@
       (is (= :get (-> r :request :request-method)))
       (is (= "gzip, deflate" (get-in r [:request :headers "accept-encoding"])))))
 
+  (testing "query encoding"
+    (let [r (get "https://httpbin.org/get?foo=bar<bee")]
+      (is (= "https://httpbin.org/get?foo=bar%3Cbee" (:uri r)) "encodes illegals"))
+
+    (let [r (get "https://httpbin.org/get?foo=bar%3Cbee")]
+      (is (= "https://httpbin.org/get?foo=bar%3Cbee" (:uri r)) "does not double encode")))
+
   (testing "verbs exist"
     (are [fn] (= 200 (:status (fn "https://httpbin.org/status/200")))
       get

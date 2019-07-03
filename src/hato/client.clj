@@ -273,13 +273,12 @@
     :or   {request-method :get}
     :as   req}]
   (let [builder (HttpRequest/newBuilder
-                 (URI. (name scheme)
-                       nil
-                       server-name
-                       (or server-port -1)
-                       uri
-                       query-string
-                       nil))]
+                 (URI. (str (name scheme)
+                            "://"
+                            server-name
+                            (when server-port (str ":" server-port))
+                            uri
+                            (when query-string (str "?" query-string)))))]
     (.method builder (str/upper-case (name request-method)) (->BodyPublisher req))
 
     (when expect-continue
