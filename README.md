@@ -23,7 +23,7 @@ hato requires JDK 11 and above. If you are running an older vesion of Java, plea
 For Leinengen, add this to your project.clj
 
 ```clojure
-[hato "0.3.0"]
+[hato "0.3.1"]
 ```
 
 ## Quickstart
