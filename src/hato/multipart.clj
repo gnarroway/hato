@@ -3,7 +3,8 @@
   (:refer-clojure :exclude [get])
   (:require [clojure.java.io :as io]
             [clojure.spec.alpha :as s])
-  (:import (java.io PipedOutputStream PipedInputStream File)))
+  (:import (java.io PipedOutputStream PipedInputStream File)
+           (java.nio.file Files)))
 
 ;;; Helpers
 
@@ -15,9 +16,11 @@
 
 (defn- content-type
   [{:keys [content]}]
-  (if (string? content)
-    "Content-Type: text/plain; charset=UTF-8"
-    "Content-Type: application/octet-stream"))
+  (cond
+    (string? content) "Content-Type: text/plain; charset=UTF-8"
+    (instance? File content) (str "Content-Type: " (or (Files/probeContentType (.toPath content))
+                                                       "application/octet-stream"))
+    :else "Content-Type: application/octet-stream"))
 
 (defn- content-transfer-encoding
   [{:keys [content]}]
@@ -92,15 +95,15 @@
   (def ms [{:name "title" :content "My Awesome Picture"}
            {:name "Content/type" :content "image/jpeg"}
            {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
-           {:name "file" :content (clojure.java.io/file ".nrepl-port")}])
+           {:name "file" :content (io/file ".nrepl-port")}])
 
   ; Create the body
   (body ms b)
 
   ; Copy to out for testing
-  (with-open [xin (clojure.java.io/input-stream *1)
+  (with-open [xin (io/input-stream *1)
               xout (java.io.ByteArrayOutputStream.)]
-    (clojure.java.io/copy xin xout)
+    (io/copy xin xout)
     (.toByteArray xout))
 
   ; Print as string
