@@ -17,8 +17,8 @@
    (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
    (java.security KeyStore)
    (java.time Duration)
-   (java.util.function Function)
-   (java.io File)
+   (java.util.function Function Supplier)
+   (java.io File InputStream)
    (clojure.lang ExceptionInfo)))
 
 (defn- ->Authenticator
@@ -68,6 +68,9 @@
       (nil? body) (HttpRequest$BodyPublishers/noBody)
       (bytes? body) (HttpRequest$BodyPublishers/ofByteArray body)
       (instance? File body) (HttpRequest$BodyPublishers/ofFile (.toPath body))
+      (instance? InputStream body) (HttpRequest$BodyPublishers/ofInputStream (reify Supplier
+                                                                               (get [_]
+                                                                                 body)))
       :else (HttpRequest$BodyPublishers/ofString body))))
 
 (defn- ->ProxySelector

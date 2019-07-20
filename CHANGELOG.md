@@ -2,11 +2,12 @@
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
 ## [Unreleased]
-
+### Added
+- Multipart support ([#1](https://github.com/gnarroway/hato/issues/1))
 
 ## [0.3.1] - 2019-07-01
 ### Added
-- This CHANGELOG filec
+- This CHANGELOG file
 
 ### Fixed
 - Double encoding of query string ([#3](https://github.com/gnarroway/hato/issues/3)). 

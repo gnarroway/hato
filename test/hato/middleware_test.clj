@@ -4,7 +4,7 @@
             [hato.middleware :refer :all])
   (:import (java.util.zip
             GZIPOutputStream)
-           (java.io ByteArrayOutputStream ByteArrayInputStream)))
+           (java.io ByteArrayOutputStream ByteArrayInputStream InputStream)))
 
 (deftest test-wrap-request-timing
   (let [r ((wrap-request-timing (fn [x] (Thread/sleep 1) x)) {})]
@@ -296,6 +296,18 @@
           resp ((wrap-request client (conj default-middleware some-middleware)) {:as :string})]
       (is (= "s" (:body resp)))
       (is (= 1 (:body-length resp))))))
+
+(deftest test-multipart
+  (testing "without multipart option"
+    (let [r ((wrap-multipart identity) {})]
+      (is (nil? (:body r)))
+      (is (empty? (:headers r)))))
+
+  (testing "with multipart option"
+    (let [r ((wrap-multipart identity) {:multipart [{:name "title" :content "My Awesome Picture"}]})]
+      (is (instance? InputStream (:body r)))
+      (is (re-matches #"^multipart/form-data; boundary=[a-zA-Z0-9_]+$" (-> r :headers (get "content-type"))))
+      (is (nil? (:multipart r))))))
 
 (comment
   (run-tests))

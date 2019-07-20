@@ -4,7 +4,8 @@
    [clojure.edn :as edn]
    [clojure.java.io :as io]
    [clojure.string :as str]
-   [clojure.walk :refer [prewalk]])
+   [clojure.walk :refer [prewalk]]
+   [hato.multipart :as multipart])
   (:import
    (java.util
     Base64)
@@ -686,6 +687,26 @@
     ([req respond raise]
      (client (nest-params-request req) respond raise))))
 
+(defn multipart-request
+  "Adds appropriate body and header if making a multipart request."
+  [{:keys [multipart] :as req}]
+  (if multipart
+    (let [b (multipart/boundary)]
+      (-> req
+          (dissoc :multipart)
+          (assoc :body (multipart/body multipart b))
+          (update :headers assoc "content-type" (str "multipart/form-data; boundary=" b))))
+    req))
+
+(defn wrap-multipart
+  "Middleware wrapping multipart requests."
+  [client]
+  (fn
+    ([req]
+     (client (multipart-request req)))
+    ([req respond raise]
+     (client (multipart-request req) respond raise))))
+
 (def default-middleware
   "The default list of middleware hato uses for wrapping requests."
   [wrap-request-timing
@@ -701,6 +722,8 @@
    wrap-exceptions
    wrap-accept
    wrap-accept-encoding
+   wrap-multipart
+
    wrap-content-type
    wrap-form-params
    wrap-nested-params

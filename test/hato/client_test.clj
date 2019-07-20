@@ -7,7 +7,8 @@
            (java.net ProxySelector CookieHandler Authenticator CookieManager)
            (java.net.http HttpClient$Redirect HttpClient$Version HttpClient)
            (java.time Duration)
-           (javax.net.ssl SSLContext)))
+           (javax.net.ssl SSLContext)
+           (java.util UUID)))
 
 (deftest test-build-http-client
   (testing "authenticator"
@@ -95,6 +96,21 @@
       delete
       head
       options)))
+
+(deftest ^:integration test-multipart-response
+  (testing "basic get request returns response map"
+    (let [uuid (.toString (UUID/randomUUID))
+          _ (spit (io/file ".test-data") uuid)
+          r (post "https://httpbin.org/post" {:as        :json
+                                              :multipart [{:name "title" :content "My Awesome Picture"}
+                                                          {:name "Content/type" :content "image/jpeg"}
+                                                          {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
+                                                          {:name "file" :content (io/file ".test-data")}]})]
+
+      (is (= {:files {:file uuid}
+              :form  {:Content/type "image/jpeg"
+                      :eggplant     "Eggplants"
+                      :title        "My Awesome Picture"}} (-> r :body (select-keys [:files :form])))))))
 
 (deftest ^:integration test-basic-response-async
   (testing "basic get request returns response map"
