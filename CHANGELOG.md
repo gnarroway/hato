@@ -1,9 +1,12 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## [Unreleased]
+## [0.4.0]
 ### Added
 - Multipart support ([#1](https://github.com/gnarroway/hato/issues/1))
+
+### Updated
+- Readme notes it is now a stable API and ready for use.
 
 ## [0.3.1] - 2019-07-01
 ### Added
@@ -21,6 +24,7 @@ users to make their own request function from some stack of middleware.
 ### Added
 - Initial release
 
-[Unreleased]: https://github.com/gnarroway/hato/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/gnarroway/hato/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/gnarroway/hato/compare/v0.3.1...0.4.0
 [0.3.1]: https://github.com/gnarroway/hato/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/gnarroway/hato/compare/v0.2.0...v0.3.0

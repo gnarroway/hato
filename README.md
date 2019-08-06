@@ -14,16 +14,17 @@ still allowing the underlying HttpClient to be configured via native Java object
 
 ## Status
 
-hato is under active development. Pre-1.0.0 releases should be considered alpha, and the API is subject to change.
+hato has a stable API and is used in production for both synchronous and asynchronous use cases.
+Please try it out and raise any issues you may find.
 
 ## Installation
 
-hato requires JDK 11 and above. If you are running an older vesion of Java, please look at [clj-http](https://github.com/dakrone/clj-http).
+hato requires JDK 11 and above. If you are running an older version of Java, please look at [clj-http](https://github.com/dakrone/clj-http).
 
 For Leinengen, add this to your project.clj
 
 ```clojure
-[hato "0.3.1"]
+[hato "0.4.0"]
 ```
 
 ## Quickstart
@@ -45,7 +46,7 @@ Require it to get started and make a request:
   ;  ...}
 ```
 
-## Usagep
+## Usage
 
 ### Building a client
 
@@ -225,7 +226,7 @@ returned can be used to indicate when processing has completed.
 ; =>
 ; #object[jdk.internal.net.http.common.MinimalFuture...
 
-; Deref it to get the value87
+; Deref it to get the value
 (-> @(hc/get "https://httpbin.org/get" {:async? true})
     :body)
 ; =>
