@@ -67,7 +67,7 @@
     (cond
       (nil? body) (HttpRequest$BodyPublishers/noBody)
       (bytes? body) (HttpRequest$BodyPublishers/ofByteArray body)
-      (instance? File body) (HttpRequest$BodyPublishers/ofFile (.toPath body))
+      (instance? File body) (HttpRequest$BodyPublishers/ofFile (.toPath ^File body))
       (instance? InputStream body) (HttpRequest$BodyPublishers/ofInputStream (reify Supplier
                                                                                (get [_]
                                                                                  body)))
@@ -301,7 +301,7 @@
 (defn request*
   [{:keys [http-client async? as]
     :as   req} & [respond raise]]
-  (let [http-client (if (instance? HttpClient http-client) http-client (build-http-client http-client))
+  (let [^HttpClient http-client (if (instance? HttpClient http-client) http-client (build-http-client http-client))
         http-request (ring-request->HttpRequest req)
         bh (->BodyHandler as)]
     (if-not async?
@@ -323,7 +323,7 @@
           (.exceptionally
            (reify Function
              (apply [_ e]
-               (let [cause (.getCause e)]
+               (let [cause (.getCause ^Exception e)]
                  (if (instance? ExceptionInfo cause)
                    (raise cause)
                    (raise e))))))))))

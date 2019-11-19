@@ -21,6 +21,8 @@
     GZIPInputStream InflaterInputStream ZipException Inflater)))
 
 ;; Cheshire is an optional dependency, so we check for it at compile time.
+
+
 (def json-enabled?
   (try
     (require
@@ -178,8 +180,8 @@
 
 (defn coerce-json-body
   [{:keys [coerce]} {:keys [body status] :as resp} keyword? strict?]
-  (let [charset (or (-> resp :content-type-params :charset)
-                    "UTF-8")
+  (let [^String charset (or (-> resp :content-type-params :charset)
+                            "UTF-8")
         ; TODO consider using stream
         decode-func (if strict? json-decode-strict json-decode)]
     (if json-enabled?
@@ -200,7 +202,7 @@
 
 (defn coerce-clojure-body
   [_ {:keys [body] :as resp}]
-  (let [charset (or (-> resp :content-type-params :charset) "UTF-8")]
+  (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")]
     (assoc resp :body (edn/read-string (String. ^"[B" body charset)))))
 
 (defn coerce-transit-body
@@ -239,7 +241,7 @@
   resp)
 
 (defmethod coerce-response-body :default
-  [_ {:keys [body] :as resp}]
+  [_ {:keys [^"[B" body] :as resp}]
   (assoc resp :body (String. body "UTF-8")))
 
 (defn- output-coercion-response
@@ -340,7 +342,7 @@
     :array "[]"
     ""))
 
-(defn generate-query-string-with-encoding [params encoding multi-param-style]
+(defn generate-query-string-with-encoding [params ^String encoding multi-param-style]
   (str/join "&"
             (mapcat (fn [[k v]]
                       (if (sequential? v)
