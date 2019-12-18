@@ -6,7 +6,7 @@
 
 An HTTP client for Clojure, wrapping JDK 11's [HttpClient](https://openjdk.java.net/groups/net/httpclient/intro.html).
 
-It supports both HTTP/1.1 and HTTP/2, with synchronous and asynchronous execution modes.
+It supports both HTTP/1.1 and HTTP/2, with synchronous and asynchronous execution modes as well as websockets.
 
 In general, it will feel familiar to users of http clients like [clj-http](https://github.com/dakrone/clj-http).
 The API is designed to be idiomatic and to make common tasks convenient, whilst
@@ -442,7 +442,65 @@ supply different middleware by using `wrap-request` yourself:
 (my-get "https://httpbin.org/get" {})
 ; :access-log https://httpbin.org/get 200 1069
 ; => Returns string body
+```     
+
+### WebSockets
+
+The simplest way to get started is with the `websocket` function:
+
+```clojure 
+(require '[hato.websocket :as ws]) 
+
+(let [ws @(ws/websocket "ws://echo.websocket.org"
+                        {:on-text (fn [ws msg last?]
+                                    (println "Received message:" msg))
+                         :on-close (fn [ws status reason]
+                                     (println "WebSocket closed!"))})]
+  (ws/send-text! ws "Hello World!")
+  (Thread/sleep 1000)
+  (ws/close! ws))
+```  
+
+By default, hato WebSocket functions are asynchronous and most return a 
+[CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html). This 
+can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold), to give you promise chains etc.
+
+```clojure  
+(require '[hato.websocket :as ws]) 
+(require '[manifold.deferred :as d]) 
+
+(-> (ws/websocket "ws://echo.websocket.org"
+                  {:on-close (fn [ws status reason]
+                               (println "WebSocket closed!"))
+                   :on-text  (fn [ws msg last?]
+                               (println "Received message:" msg))}) 
+    (d/chain #(ws/send-text! % "Hello")
+             #(ws/send-text! % "World!")
+             #(ws/close! %))
+    (d/catch Exception #(println "Something went wrong!" %)))
 ```
+
+### WebSocket options
+
+`uri` A WebSocket uri (e.g. `"ws://echo.websocket.org"`).
+
+`listener` A WebSocket listener. Can either be a `WebSocket$Listener` or a map with one or more of the following keys:
+
+  - `:on-open` Called when a `WebSocket` has been connected.
+  - `:on-text` A textual data has been received. 
+  - `:on-binary` A binary data has been received. 
+  - `:on-ping` A Ping message has been received. 
+  - `:on-pong` A Pong message has been received. 
+  - `:on-pong` Receives a Close message indicating the WebSocket's input has been closed. 
+  - `:on-error` An error has occurred.
+  
+`http-client` An `HttpClient` or a map as about in the HTTP client.
+
+`opts` Additional options may be a map of one or more of the following:
+
+  - `headers` Adds the given name-value pair to the list of additional HTTP headers sent during the opening handshake.
+  - `connect-timeout` Sets a timeout for establishing a WebSocket connection.
+  - `subprotocols` Sets a request for the given subprotocols.
 
 ### Debugging
 
