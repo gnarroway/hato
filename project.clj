@@ -11,4 +11,5 @@
   :plugins [[lein-cljfmt "0.6.4"]]
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.10.1"]
                                   [cheshire "5.8.1"]
-                                  [com.cognitect/transit-clj "0.8.313"]]}})
+                                  [com.cognitect/transit-clj "0.8.313"]
+                                  [manifold "0.1.6"]]}})

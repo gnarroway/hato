@@ -6,7 +6,7 @@
 
 An HTTP client for Clojure, wrapping JDK 11's [HttpClient](https://openjdk.java.net/groups/net/httpclient/intro.html).
 
-It supports both HTTP/1.1 and HTTP/2, with synchronous and asynchronous execution modes.
+It supports both HTTP/1.1 and HTTP/2, with synchronous and asynchronous execution modes as well as websockets.
 
 In general, it will feel familiar to users of http clients like [clj-http](https://github.com/dakrone/clj-http).
 The API is designed to be idiomatic and to make common tasks convenient, whilst
@@ -442,7 +442,47 @@ supply different middleware by using `wrap-request` yourself:
 (my-get "https://httpbin.org/get" {})
 ; :access-log https://httpbin.org/get 200 1069
 ; => Returns string body
-```
+```     
+
+### Websockets
+
+Websockets may only be used in an async fashion. We recommend using manifold to work with the websocket.
+
+```clojure 
+(require '[manifold.deferred :as d]) 
+(require '[hato.websocket :as ws])
+(-> (ws/websocket "ws://echo.websocket.org"
+                  {:on-open  (fn [ws]
+                               (println "Connection Opened"))
+                   :on-close (fn [ws status reason]
+                               (println "Connection Closed"))
+                   :on-text  (fn [ws data last]
+                               (println "Received Text" (str data)))})
+    (d/chain #(ws/send-text! % "Hello" true)
+             #(ws/send-text! % "World!" true)
+             #(ws/close! %))
+    (d/catch Exception #(println "Something went wrong!" %)))
+``` 
+
+### websocket options
+
+`uri` A websocket uri (e.g. `"ws://echo.websocket.org"`).
+
+`listener` A websocket listener. Can either be a `WebSocket$Listener` or a map with one or more of the following keys:
+
+  - `:on-open` Called when a `WebSocket` has been connected.
+  - `:on-text` A textual data has been received. 
+  - `:on-binary` A binary data has been received. 
+  - `:on-ping` A Ping message has been received. 
+  - `:on-pong` A Pong message has been received. 
+  - `:on-pong` Receives a Close message indicating the WebSocket's input has been closed. 
+  - `:on-error` An error has occurred.
+  
+`http-client` An `HttpClient` or a map with more or more of the following:
+
+  - `headers` Adds the given name-value pair to the list of additional HTTP headers sent during the opening handshake.
+  - `connect-timeout` Sets a timeout for establishing a WebSocket connection.
+  - `subprotocols` Sets a request for the given subprotocols.
 
 ### Debugging
 
