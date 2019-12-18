@@ -1,6 +1,7 @@
 (ns hato.websocket
   (:require [hato.client :as client]
-            [manifold.deferred :as d])
+            [manifold.deferred :as d]
+            [manifold.stream :as s])
   (:import (java.net.http WebSocket$Listener WebSocket$Builder HttpClient WebSocket)
            (java.time Duration)
            (java.net URI)
@@ -69,19 +70,19 @@
 
     (.buildAsync builder (URI/create uri) listener)))
 
-(defn websocket*
+(defn websocket-raw*
   "Constructs a new websocket connection."
   [{:keys [http-client listener]
     :as   req}]
   (let [^HttpClient http-client (if (instance? HttpClient http-client) http-client (client/build-http-client http-client))
         ^WebSocket$Listener listener (if (instance? WebSocket$Listener listener) listener (request->WebSocketListener listener))
         ^CompletableFuture future (request->WebSocket http-client listener req)]
-    (d/->deferred future)))
+    future))
 
-(defn websocket
+(defn websocket-raw
   "Constructs a new websocket connection."
   [uri listener & [opts]]
-  (websocket* (merge {:uri uri :listener listener} opts)))
+  (websocket-raw* (merge {:uri uri :listener listener} opts)))
 
 (defn ^CompletableFuture send-text!
   "Sends textual data with characters from the given character sequence."
@@ -135,3 +136,112 @@
   "Closes this WebSocket's input and output abruptly."
   [^WebSocket ws]
   (.abort ws))
+
+(defn websocket-duplex-stream
+  "Constructs a lower level websocket duplex manifold stream. The stream
+  can be used to send and receive all websocket event types."
+  [uri & [opts]]
+  (let [out (s/stream)
+        in (s/stream)]
+    (-> (websocket-raw uri
+                       {:on-close  (fn [ws status reason]
+                                     (s/close! out))
+                        :on-text   (fn [ws data last]
+                                     (s/put! out {:ws   ws
+                                                  :type :text
+                                                  :msg  data
+                                                  :last last}))
+                        :on-binary (fn [ws data last]
+                                     (s/put! out {:ws   ws
+                                                  :type :binary
+                                                  :msg  data
+                                                  :last last}))
+                        :on-ping   (fn [ws msg]
+                                     (s/put! out {:ws   ws
+                                                  :type :ping
+                                                  :msg  msg}))
+                        :on-pong   (fn [ws msg]
+                                     (s/put! out {:ws   ws
+                                                  :type :pong
+                                                  :msg  msg}))
+                        :on-error  (fn [ws err]
+                                     (s/put! out (d/error-deferred err))
+                                     (s/close! out))}
+                       opts)
+        d/->deferred
+        (d/chain
+          (fn [ws]
+            (-> (s/mapcat
+                  (fn [{:keys [type msg last status-code reason]}]
+                    (case type
+                      :text (send-text! ws msg last)
+                      :binary (send-binary! ws msg last)
+                      :ping (send-ping! ws msg)
+                      :pong (send-pong! ws msg)
+                      :close (close! ws status-code reason))
+                    nil)
+                  in)
+                (s/connect out))))
+        (d/catch Exception
+          (fn [err]
+            (s/put! out (d/error-deferred err))
+            (s/close! out))))
+    (s/splice in out)))
+
+(defn websocket
+  "Constructs a higher level websocket duplex manifold stream. The stream
+  can be used to send and receive text/binary data."
+  [uri & [opts]]
+  (let [out (s/stream)
+        in (s/stream)]
+    (-> (websocket-raw uri
+                       {:on-close  (fn [ws status reason]
+                                     (s/close! out))
+                        :on-text   (fn [ws data last]
+                                     (s/put! out data))
+                        :on-binary (fn [ws data last]
+                                     (s/put! out data))
+                        :on-error  (fn [ws err]
+                                     (s/put! out (d/error-deferred err))
+                                     (s/close! out))}
+                       opts)
+        d/->deferred
+        (d/chain
+          (fn [ws]
+            (-> (s/mapcat
+                  (fn [msg]
+                    (cond
+                      (string? msg)
+                      (send-text! ws msg true)
+
+                      (bytes? msg)
+                      (send-binary! ws msg true)
+
+                      :else
+                      (throw (ex-info "Unknown message type" {:msg msg})))
+                    nil)
+                  in)
+                (s/connect out))))
+        (d/catch Exception
+          (fn [err]
+            (s/put! out (d/error-deferred err))
+            (s/close! out))))
+    (s/splice in out)))
+
+(comment
+  (let [s (websocket-duplex-stream "ws://echo.websocket.org")]
+    (s/put! s {:type :text :msg "foo" :last false})
+    (-> (s/take! s)
+        (d/chain (fn [x]
+                   (println "got x" x)))
+        (d/catch (fn [err]
+                   (println "here!" err))))
+    (s/close! s))
+  (let [s (websocket "ws://echo.websocket.org")]
+    (s/put! s "foo")
+    (-> (s/take! s)
+        (d/chain (fn [x]
+                   (println "got x" x)))
+        (d/catch (fn [err]
+                   (println "here!" err))))
+    (s/close! s)))
