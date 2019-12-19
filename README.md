@@ -461,22 +461,35 @@ Note, if you need lower level events like ping/pong, see websocket-with-events.
 
 ```clojure 
 (require '[manifold.deferred :as d]) 
-(require '[hato.websocket :as ws])
+(require '[hato.websocket :as ws]) 
+
 (let [s (ws/websocket "ws://echo.websocket.org")]
-    ;; Send a message
-    (s/put! s "Hello")
+  ;; Send a message
+  (s/put! s "Hello")
 
-    ;; Receive a message
-    (-> (s/take! s)
-        (d/chain #(println "Received event:" %))
-        (d/catch #(println "There was an error:" %)))
+  ;; Receive a single message
+  (println "Message:" @(s/take! s))
 
-    ;; Listen for when the WebSocket closes
-    (s/on-closed s #(println "WebSocket closed!"))
+  ;; Receive lots of messages via the helper function
+  (ws/consume-msgs s
+                   #(println "Received event:" %)
+                   #(println "WebSocket closed!"))
 
-    ;; You can close it later with
-    (Thread/sleep 1000)
-    (s/close! s))
+  ;; Or listen explicitly for when the WebSocket closes
+  (s/on-closed s #(println "WebSocket closed!"))
+
+  ;; Or roll your own pipeline
+  (d/loop []
+      (-> (s/take! s :done)
+          (d/chain (fn [msg]
+                     (when-not (= msg :done)
+                       (println "Received event:" msg)
+                       (d/recur))))
+          (d/catch #(println "There was an error:" %))))
+
+  ;; You can close it later with
+  (Thread/sleep 1000)
+  (s/close! s))
 ```    
 
 If you need to send lower level events like ping and pong, use the `websocket-with-events`:
@@ -498,29 +511,43 @@ with the following structure:
 
 ```clojure 
 (require '[manifold.deferred :as d]) 
-(require '[hato.websocket :as ws])
+(require '[hato.websocket :as ws])  
+
 (let [s (websocket-with-events "ws://echo.websocket.org")]
-    ;; Send a message
-    (s/put! s {:type :text :msg "Hello" :last? false})
+  ;; Send a message
+  (s/put! s {:type :text :msg "Hello" :last? false})
 
-    ;; Receive a message
-    (-> (s/take! s)
-        (d/chain #(println "Received event:" %))
-        (d/catch #(println "There was an error:" %)))
+  ;; Receive a single message
+  (println "Message:" @(s/take! s))
 
-    ;; Listen for when the WebSocket closes
-    (s/on-closed s #(println "WebSocket closed!"))
+  ;; Receive lots of messages via the helper function
+  (ws/consume-msgs s
+                   #(println "Received event:" %)
+                   #(println "WebSocket closed!"))
 
-    ;; You can close it later with
-    (Thread/sleep 1000)
-    (s/close! s))
+  ;; Or listen explicitly for when the WebSocket closes
+  (s/on-closed s #(println "WebSocket closed!"))
+
+  ;; Or roll your own pipeline
+  (d/loop []
+      (-> (s/take! s :done)
+          (d/chain (fn [msg]
+                     (when-not (= msg :done)
+                       (println "Received event:" msg)
+                       (d/recur))))
+          (d/catch #(println "There was an error:" %))))
+
+  ;; You can close it later with
+  (Thread/sleep 1000)
+  (s/close! s))
 ```   
 
 If you need full control over the WebSocket, use `websocket-raw`:
 
 ```clojure 
 (require '[manifold.deferred :as d]) 
-(require '[hato.websocket :as ws])
+(require '[hato.websocket :as ws]) 
+
 (-> (ws/websocket-raw "ws://echo.websocket.org"
                       {:on-open  (fn [ws]
                                    (println "Connection Opened"))

@@ -256,3 +256,21 @@
         (throw (ex-info "Unknown message type" {:msg msg})))
       nil)
     opts))
+
+(defn consume-msgs
+  "Helper function to consume all messages from a stream by calling f on each value."
+  ([stream f]
+   (consume-msgs stream f nil))
+  ([stream f done-cb]
+   (d/loop []
+     (d/chain
+       (s/take! stream ::drained)
+       (fn [msg]
+         (if (identical? ::drained msg)
+           ::drained
+           (f msg)))
+       (fn [result]
+         (if (identical? ::drained result)
+           (when done-cb
+             (done-cb))
+           (d/recur)))))))
