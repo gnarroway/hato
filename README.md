@@ -527,18 +527,19 @@ If you need full control over the WebSocket, use `websocket-raw`:
                        :on-close (fn [ws status reason]
                                    (println "Connection Closed"))
                        :on-text  (fn [ws data last]
-                                   (println "Received Text" (str data)))})
+                                   (println "Received Text" (str data)))}) 
+    d/->deferred
     (d/chain #(ws/send-text! % "Hello" true)
              #(ws/send-text! % "World!" true)
              #(ws/close! %))
     (d/catch Exception #(println "Something went wrong!" %)))
 ``` 
 
-### websocket options
+### WebSocket options
 
-`uri` A websocket uri (e.g. `"ws://echo.websocket.org"`).
+`uri` A WebSocket uri (e.g. `"ws://echo.websocket.org"`).
 
-`listener` A websocket listener. Can either be a `WebSocket$Listener` or a map with one or more of the following keys:
+`listener` A WebSocket listener. Can either be a `WebSocket$Listener` or a map with one or more of the following keys:
 
   - `:on-open` Called when a `WebSocket` has been connected.
   - `:on-text` A textual data has been received. 
@@ -548,7 +549,9 @@ If you need full control over the WebSocket, use `websocket-raw`:
   - `:on-pong` Receives a Close message indicating the WebSocket's input has been closed. 
   - `:on-error` An error has occurred.
   
-`http-client` An `HttpClient` or a map with more or more of the following:
+`http-client` An `HttpClient` or a map as about in the HTTP client.
+
+`opts` Additional options may be a map of one or more of the following:
 
   - `headers` Adds the given name-value pair to the list of additional HTTP headers sent during the opening handshake.
   - `connect-timeout` Sets a timeout for establishing a WebSocket connection.

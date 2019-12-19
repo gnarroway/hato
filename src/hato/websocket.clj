@@ -12,7 +12,14 @@
   (reify WebSocket$Listener))
 
 (defn request->WebSocketListener
-  "Constructs a new websocket listener to receive events for a given websocket connection."
+  "Constructs a new WebSocket listener to receive events for a given WebSocket connection.
+   :on-open    Called when a `WebSocket` has been connected.
+   :on-text    A textual data has been received.
+   :on-binary  A binary data has been received.
+   :on-ping    A Ping message has been received.
+   :on-pong    A Pong message has been received.
+   :on-pong    Receives a Close message indicating the WebSocket's input has been closed.
+   :on-error   An error has occurred."
   [{:keys [on-open
            on-text
            on-binary
@@ -51,7 +58,12 @@
       (.onError default-websocket-listener ws err))))
 
 (defn ^CompletableFuture request->WebSocket
-  "Builds a new websocket connection from a request object and returns a future connection."
+  "Builds a new WebSocket connection from a request object and returns a future connection.
+  Optionally accepts:
+  :headers         Adds the given name-value pair to the list of additional
+                   HTTP headers sent during the opening handshake.
+  :connect-timeout Sets a timeout for establishing a WebSocket connection (in millis).
+  :subprotocols    Sets a request for the given subprotocols."
   [^HttpClient http-client
    ^WebSocket$Listener listener
    {:keys [uri
@@ -71,7 +83,7 @@
     (.buildAsync builder (URI/create uri) listener)))
 
 (defn websocket-raw*
-  "Constructs a new websocket connection."
+  "Constructs a new WebSocket connection."
   [{:keys [http-client listener]
     :as   req}]
   (let [^HttpClient http-client (if (instance? HttpClient http-client) http-client (client/build-http-client http-client))
@@ -80,7 +92,7 @@
     future))
 
 (defn websocket-raw
-  "Constructs a new websocket connection."
+  "Constructs a new WebSocket connection."
   [uri listener & [opts]]
   (websocket-raw* (merge {:uri uri :listener listener} opts)))
 
@@ -138,8 +150,8 @@
   (.abort ws))
 
 (defn websocket-manifold
-  "Constructs a lower level websocket duplex manifold stream. The stream
-  can be used to send and receive all websocket event types."
+  "Constructs a lower level WebSocket duplex manifold stream. The stream
+  can be used to send and receive all WebSocket event types."
   [uri out-fn in-fn & [opts]]
   (let [out (s/stream)
         in (s/stream)]
@@ -182,8 +194,8 @@
 
 
 (defn websocket-with-events
-  "Constructs a lower level websocket duplex manifold stream. The stream
-  can be used to send and receive all websocket event types.
+  "Constructs a lower level WebSocket duplex manifold stream. The stream
+  can be used to send and receive all WebSocket event types.
 
   Messages from the server will be emitted to the stream returned by
   this function as a map of the following:
@@ -213,14 +225,14 @@
     opts))
 
 (defn websocket
-  "Constructs a higher level websocket duplex manifold stream. The stream
+  "Constructs a higher level WebSocket duplex manifold stream. The stream
   can be used to send and receive text/binary data.
 
   Messages from the server will be emitted to the stream returned by
   this function as either a CharSequence (text) or ByteBuffer (binary)
 
   Messages can be sent to the server by putting either a
-  CharSequence (text) or ByteBuffer (binary) on the stream.
+  CharSequence (text) or bytes/ByteBuffer (binary) on the stream.
 
   Note, if you need lower level events like ping/pong, see websocket-with-events."
   [uri & [opts]]
@@ -231,10 +243,13 @@
         (s/put! stream msg)))
     (fn [ws msg]
       (cond
-        (string? msg)
+        (instance? CharSequence msg)
         (send-text! ws msg true)
 
         (bytes? msg)
+        (send-binary! ws (ByteBuffer/wrap msg) true)
+
+        (instance? msg ByteBuffer)
         (send-binary! ws msg true)
 
         :else
