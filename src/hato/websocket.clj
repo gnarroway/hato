@@ -145,17 +145,17 @@
         in (s/stream)]
     (-> (websocket-raw uri
                        {:on-close  (fn [ws status reason]
-                                     (s/close! out))
-                        :on-text   (fn [ws data last]
-                                     (out-fn out {:ws   ws
-                                                  :type :text
-                                                  :msg  data
-                                                  :last last}))
-                        :on-binary (fn [ws data last]
-                                     (out-fn out {:ws   ws
-                                                  :type :binary
-                                                  :msg  data
-                                                  :last last}))
+                                     (s/close! in))
+                        :on-text   (fn [ws data last?]
+                                     (out-fn out {:ws    ws
+                                                  :type  :text
+                                                  :msg   data
+                                                  :last? last?}))
+                        :on-binary (fn [ws data last?]
+                                     (out-fn out {:ws    ws
+                                                  :type  :binary
+                                                  :msg   data
+                                                  :last? last?}))
                         :on-ping   (fn [ws msg]
                                      (out-fn out {:ws   ws
                                                   :type :ping
@@ -166,32 +166,46 @@
                                                   :msg  msg}))
                         :on-error  (fn [ws err]
                                      (s/put! out (d/error-deferred err))
-                                     (s/close! out))}
+                                     (s/close! in))}
                        opts)
         d/->deferred
         (d/chain
           (fn [ws]
+            (s/on-closed in #(close! ws))
             (-> (s/mapcat (partial in-fn ws) in)
                 (s/connect out))))
         (d/catch Exception
           (fn [err]
             (s/put! out (d/error-deferred err))
-            (s/close! out))))
+            (s/close! in))))
     (s/splice in out)))
 
 
 (defn websocket-with-events
   "Constructs a lower level websocket duplex manifold stream. The stream
-  can be used to send and receive all websocket event types."
+  can be used to send and receive all websocket event types.
+
+  Messages from the server will be emitted to the stream returned by
+  this function as a map of the following:
+  :ws    WebSocket
+  :type  :text/:binary/:ping/:pong
+  :msg   Either CharSequence (:text), ByteBuffer (:binary/:ping/:pong)
+  :last? Present for :text/:binary events
+
+  Messages can be sent to the server by putting a map onto the stream
+  with the following structure:
+  :type  :text/:binary/:ping/:pong
+  :msg   Either CharSequence (:text), ByteBuffer (:binary/:ping/:pong)
+  :last? Present for :text/:binary events"
   [uri & [opts]]
   (websocket-manifold
     uri
     (fn [stream payload]
       (s/put! stream payload))
-    (fn [ws {:keys [type msg last status-code reason]}]
+    (fn [ws {:keys [type msg last? status-code reason]}]
       (case type
-        :text (send-text! ws msg last)
-        :binary (send-binary! ws msg last)
+        :text (send-text! ws msg last?)
+        :binary (send-binary! ws msg last?)
         :ping (send-ping! ws msg)
         :pong (send-pong! ws msg)
         :close (close! ws status-code reason))
@@ -200,7 +214,15 @@
 
 (defn websocket
   "Constructs a higher level websocket duplex manifold stream. The stream
-  can be used to send and receive text/binary data."
+  can be used to send and receive text/binary data.
+
+  Messages from the server will be emitted to the stream returned by
+  this function as either a CharSequence (text) or ByteBuffer (binary)
+
+  Messages can be sent to the server by putting either a
+  CharSequence (text) or ByteBuffer (binary) on the stream.
+
+  Note, if you need lower level events like ping/pong, see websocket-with-events."
   [uri & [opts]]
   (websocket-manifold
     uri
@@ -219,21 +241,3 @@
         (throw (ex-info "Unknown message type" {:msg msg})))
       nil)
     opts))
-
-(comment
-  (let [s (websocket-duplex-stream "ws://echo.websocket.org")]
-    (s/put! s {:type :text :msg "foo" :last false})
-    (-> (s/take! s)
-        (d/chain (fn [x]
-                   (println "got x" x)))
-        (d/catch (fn [err]
-                   (println "here!" err))))
-    (s/close! s))
-  (let [s (websocket "ws://echo.websocket.org")]
-    (s/put! s "foo")
-    (-> (s/take! s)
-        (d/chain (fn [x]
-                   (println "got x" x)))
-        (d/catch (fn [err]
-                   (println "here!" err))))
-    (s/close! s)))

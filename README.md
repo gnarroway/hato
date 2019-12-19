@@ -444,20 +444,90 @@ supply different middleware by using `wrap-request` yourself:
 ; => Returns string body
 ```     
 
-### Websockets
+### WebSockets
 
-Websockets may only be used in an async fashion. We recommend using manifold to work with the websocket.
+WebSockets may only be used in an async fashion via manifold. The simplest way to get started
+is with the `websocket` function:
+
+```
+Messages from the server will be emitted to the stream returned by
+this function as either a CharSequence (text) or ByteBuffer (binary)
+
+Messages can be sent to the server by putting either a
+CharSequence (text) or ByteBuffer (binary) on the stream.
+
+Note, if you need lower level events like ping/pong, see websocket-with-events.
+```
 
 ```clojure 
 (require '[manifold.deferred :as d]) 
 (require '[hato.websocket :as ws])
-(-> (ws/websocket "ws://echo.websocket.org"
-                  {:on-open  (fn [ws]
-                               (println "Connection Opened"))
-                   :on-close (fn [ws status reason]
-                               (println "Connection Closed"))
-                   :on-text  (fn [ws data last]
-                               (println "Received Text" (str data)))})
+(let [s (ws/websocket "ws://echo.websocket.org")]
+    ;; Send a message
+    (s/put! s "Hello")
+
+    ;; Receive a message
+    (-> (s/take! s)
+        (d/chain #(println "Received event:" %))
+        (d/catch #(println "There was an error:" %)))
+
+    ;; Listen for when the WebSocket closes
+    (s/on-closed s #(println "WebSocket closed!"))
+
+    ;; You can close it later with
+    (Thread/sleep 1000)
+    (s/close! s))
+```    
+
+If you need to send lower level events like ping and pong, use the `websocket-with-events`:
+
+```
+Messages from the server will be emitted to the stream returned by
+this function as a map of the following:
+    :ws    WebSocket
+    :type  :text/:binary/:ping/:pong
+    :msg   Either CharSequence (:text), ByteBuffer (:binary/:ping/:pong)
+    :last? Present for :text/:binary events
+
+Messages can be sent to the server by putting a map onto the stream
+with the following structure:
+    :type  :text/:binary/:ping/:pong
+    :msg   Either CharSequence (:text), ByteBuffer (:binary/:ping/:pong)
+    :last? Present for :text/:binary events
+```
+
+```clojure 
+(require '[manifold.deferred :as d]) 
+(require '[hato.websocket :as ws])
+(let [s (websocket-with-events "ws://echo.websocket.org")]
+    ;; Send a message
+    (s/put! s {:type :text :msg "Hello" :last? false})
+
+    ;; Receive a message
+    (-> (s/take! s)
+        (d/chain #(println "Received event:" %))
+        (d/catch #(println "There was an error:" %)))
+
+    ;; Listen for when the WebSocket closes
+    (s/on-closed s #(println "WebSocket closed!"))
+
+    ;; You can close it later with
+    (Thread/sleep 1000)
+    (s/close! s))
+```   
+
+If you need full control over the WebSocket, use `websocket-raw`:
+
+```clojure 
+(require '[manifold.deferred :as d]) 
+(require '[hato.websocket :as ws])
+(-> (ws/websocket-raw "ws://echo.websocket.org"
+                      {:on-open  (fn [ws]
+                                   (println "Connection Opened"))
+                       :on-close (fn [ws status reason]
+                                   (println "Connection Closed"))
+                       :on-text  (fn [ws data last]
+                                   (println "Received Text" (str data)))})
     (d/chain #(ws/send-text! % "Hello" true)
              #(ws/send-text! % "World!" true)
              #(ws/close! %))
