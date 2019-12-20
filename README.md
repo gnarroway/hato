@@ -510,7 +510,7 @@ with the following structure:
 
 (let [ws (websocket/websocket-with-events "ws://echo.websocket.org")]
   ;; Send a message
-  (s/put! ws {:type :text :msg "Hello" :last? false})
+  (s/put! ws {:type :text :msg "Hello" :last? true})
 
   ;; Receive a single message
   (println "Message:" @(s/take! ws))

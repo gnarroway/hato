@@ -77,21 +77,20 @@
     (when connect-timeout
       (.connectTimeout builder (Duration/ofMillis connect-timeout)))
 
-    (when subprotocols
+    (when (seq subprotocols)
       (.subprotocols builder (first subprotocols) (into-array String (rest subprotocols))))
 
     (.buildAsync builder (URI/create uri) listener)))
 
-(defn websocket-raw*
+(defn ^CompletableFuture websocket-raw*
   "Constructs a new WebSocket connection."
   [{:keys [http-client listener]
     :as   req}]
   (let [^HttpClient http-client (if (instance? HttpClient http-client) http-client (client/build-http-client http-client))
-        ^WebSocket$Listener listener (if (instance? WebSocket$Listener listener) listener (request->WebSocketListener listener))
-        ^CompletableFuture future (request->WebSocket http-client listener req)]
-    future))
+        ^WebSocket$Listener listener (if (instance? WebSocket$Listener listener) listener (request->WebSocketListener listener))]
+    (request->WebSocket http-client listener req)))
 
-(defn websocket-raw
+(defn ^CompletableFuture websocket-raw
   "Constructs a new WebSocket connection."
   [uri listener & [opts]]
   (websocket-raw* (merge {:uri uri :listener listener} opts)))
@@ -134,12 +133,12 @@
   [^WebSocket ws]
   (.getSubprotocol ws))
 
-(defn output-closed?
+(defn ^boolean output-closed?
   "Tells whether this WebSocket's output is closed."
   [^WebSocket ws]
   (.isOutputClosed ws))
 
-(defn input-closed?
+(defn ^boolean input-closed?
   "Tells whether this WebSocket's input is closed."
   [^WebSocket ws]
   (.isInputClosed ws))
@@ -191,7 +190,6 @@
             (s/close! in))))
     (s/splice in out)))
 
-
 (defn websocket-with-events
   "Constructs a lower level WebSocket duplex manifold stream. The stream
   can be used to send and receive all WebSocket event types.
@@ -215,11 +213,15 @@
       (s/put! stream payload))
     (fn [ws {:keys [type msg last? status-code reason]}]
       (case type
-        :text (send-text! ws msg last?)
-        :binary (send-binary! ws msg last?)
-        :ping (send-ping! ws msg)
-        :pong (send-pong! ws msg)
-        :close (close! ws status-code reason))
+        :text (send-text! ws msg (if (some? last?) last? true))
+        :binary (send-binary! ws
+                              (if (bytes? msg) (ByteBuffer/wrap msg) msg)
+                              (if (some? last?) last? true))
+        :ping (send-ping! ws (or msg (ByteBuffer/allocate 0)))
+        :pong (send-pong! ws (or msg (ByteBuffer/allocate 0)))
+        :close (close! ws
+                       (or status-code WebSocket/NORMAL_CLOSURE)
+                       (or reason "ok")))
       nil)
     opts))
 
