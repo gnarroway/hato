@@ -180,7 +180,6 @@
                                      (s/put! out (d/error-deferred err))
                                      (s/close! in))}
                        opts)
-        d/->deferred
         (d/chain
           (fn [ws]
             (s/on-closed in #(close! ws))
@@ -239,7 +238,8 @@
   (websocket-manifold
     uri
     (fn [stream {:keys [type msg]}]
-      (when (contains? #{:text :binary} type)
+      (when (or (= type :text)
+                (= type :binary))
         (s/put! stream msg)))
     (fn [ws msg]
       (cond
@@ -258,19 +258,27 @@
     opts))
 
 (defn consume-msgs
-  "Helper function to consume all messages from a stream by calling f on each value."
+  "Helper function to consume all messages from a stream by calling f on each value. Will
+  invoke done-cb with no arguments when the websocket closes and will invoke error-cb if
+  the websocket receives an error. The only reason to use this over simply s/consume or
+  s/consume-async is to handle or report errors more easily."
   ([stream f]
    (consume-msgs stream f nil))
   ([stream f done-cb]
+   (consume-msgs stream f done-cb nil))
+  ([stream f done-cb error-cb]
    (d/loop []
-     (d/chain
-       (s/take! stream ::drained)
-       (fn [msg]
-         (if (identical? ::drained msg)
-           ::drained
-           (f msg)))
-       (fn [result]
-         (if (identical? ::drained result)
-           (when done-cb
-             (done-cb))
-           (d/recur)))))))
+     (-> (s/take! stream ::drained)
+         (d/chain
+           (fn [msg]
+             (if (identical? ::drained msg)
+               ::drained
+               (f msg)))
+           (fn [result]
+             (if (identical? ::drained result)
+               (when done-cb
+                 (done-cb))
+               (d/recur))))
+         (d/catch (fn [err]
+                    (when error-cb
+                      (error-cb err))))))))
