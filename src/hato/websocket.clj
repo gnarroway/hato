@@ -136,21 +136,6 @@
   [^WebSocket ws ^long n]
   (.request ws n))
 
-(defn ^String sub-protocol
-  "Returns the subprotocol used by this WebSocket."
-  [^WebSocket ws]
-  (.getSubprotocol ws))
-
-(defn ^boolean output-closed?
-  "Tells whether this WebSocket's output is closed."
-  [^WebSocket ws]
-  (.isOutputClosed ws))
-
-(defn ^boolean input-closed?
-  "Tells whether this WebSocket's input is closed."
-  [^WebSocket ws]
-  (.isInputClosed ws))
-
 (defn abort!
   "Closes this WebSocket's input and output abruptly."
   [^WebSocket ws]
@@ -291,4 +276,10 @@
                (d/recur))))
          (d/catch (fn [err]
                     (when error-cb
-                      (error-cb err))))))))
+                      (error-cb err))))))))(extend-type Datafiable
+(extend-protocol clojure.core.protocols/Datafiable
+  WebSocket
+  (datafy [^WebSocket ws]
+    {:subprotocol    (.getSubprotocol ws)
+     :output-closed? (.isOutputClosed ws)
+     :input-closed?  (.isInputClosed ws)}))
