@@ -97,23 +97,31 @@
 
 (defn ^CompletableFuture send-text!
   "Sends textual data with characters from the given character sequence."
-  [^WebSocket ws ^CharSequence data last]
-  (.sendText ws data last))
+  ([^WebSocket ws ^CharSequence data]
+   (send-text! ws data true))
+  ([^WebSocket ws ^CharSequence data last?]
+   (.sendText ws data last?)))
 
 (defn ^CompletableFuture send-binary!
   "Sends binary data with bytes from the given buffer."
-  [^WebSocket ws ^ByteBuffer data last]
-  (.sendBinary ws data last))
+  ([^WebSocket ws ^ByteBuffer data]
+   (send-binary! ws data true))
+  ([^WebSocket ws ^ByteBuffer data last?]
+   (.sendBinary ws data last?)))
 
-(defn ^CompletableFuture send-ping!
+(defn ^CompletableFuture ping!
   "Sends a Ping message with bytes from the given buffer."
-  [^WebSocket ws ^ByteBuffer msg]
-  (.sendPing ws msg))
+  ([^WebSocket ws]
+   (ping! ws (ByteBuffer/allocate 0)))
+  ([^WebSocket ws ^ByteBuffer msg]
+   (.sendPing ws msg)))
 
-(defn ^CompletableFuture send-pong!
+(defn ^CompletableFuture pong!
   "Sends a Pong message with bytes from the given buffer."
-  [^WebSocket ws ^ByteBuffer msg]
-  (.sendPong ws msg))
+  ([^WebSocket ws]
+   (pong! ws (ByteBuffer/allocate 0)))
+  ([^WebSocket ws ^ByteBuffer msg]
+   (.sendPong ws msg)))
 
 (defn ^CompletableFuture close!
   "Initiates an orderly closure of this WebSocket's output by sending a
