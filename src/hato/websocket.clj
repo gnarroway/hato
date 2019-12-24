@@ -11,13 +11,13 @@
 
 (defn request->WebSocketListener
   "Constructs a new WebSocket listener to receive events for a given WebSocket connection.
-   :on-open    Called when a `WebSocket` has been connected.
-   :on-text    A textual data has been received.
-   :on-binary  A binary data has been received.
-   :on-ping    A Ping message has been received.
-   :on-pong    A Pong message has been received.
-   :on-pong    Receives a Close message indicating the WebSocket's input has been closed.
-   :on-error   An error has occurred."
+  :on-open   Called when a `WebSocket` has been connected. Called with the WebSocket instance.
+  :on-text   A textual data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message.
+  :on-binary A binary data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message.
+  :on-ping   A Ping message has been received. Called with the WebSocket instance and the ping message.
+  :on-pong   A Pong message has been received. Called with the WebSocket instance and the pong message.
+  :on-close  Receives a Close message indicating the WebSocket's input has been closed. Called with the WebSocket instance, the status code, and the reason.
+  :on-error  An error has occurred. Called with the WebSocket instance and the error.d."
   [{:keys [on-open
            on-text
            on-binary
