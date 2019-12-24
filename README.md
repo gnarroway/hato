@@ -456,7 +456,7 @@ The simplest way to get started is with the `websocket` function:
                                     (println "Received message:" msg))
                          :on-close (fn [ws status reason]
                                      (println "WebSocket closed!"))})]
-  (ws/send-text! ws "Hello World!")
+  (ws/send! ws "Hello World!")
   (Thread/sleep 1000)
   (ws/close! ws))
 ```  
@@ -474,8 +474,8 @@ can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold), to give
                                (println "WebSocket closed!"))
                    :on-text  (fn [ws msg last?]
                                (println "Received message:" msg))}) 
-    (d/chain #(ws/send-text! % "Hello")
-             #(ws/send-text! % "World!")
+    (d/chain #(ws/send! % "Hello")
+             #(ws/send! % "World!")
              #(ws/close! %))
     (d/catch Exception #(println "Something went wrong!" %)))
 ```

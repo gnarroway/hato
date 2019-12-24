@@ -107,6 +107,31 @@
   ([^WebSocket ws ^ByteBuffer data last?]
    (.sendBinary ws data last?)))
 
+(defprotocol Sendable
+  "Protocol to represent sendable message types for a WebSocket. Useful for custom
+  extensions."
+  (do-send! [msg last? ^WebSocket ws]))
+
+(extend-protocol Sendable
+  (Class/forName "[B")
+  (do-send! [^bytes msg last? ^WebSocket ws]
+    (send-binary! ws (ByteBuffer/wrap msg) last?))
+
+  ByteBuffer
+  (do-send! [^ByteBuffer msg last? ^WebSocket ws]
+    (send-binary! ws msg last?))
+
+  CharSequence
+  (do-send! [^CharSequence msg last? ^WebSocket ws]
+    (send-text! ws msg last?)))
+
+(defn send!
+  "Sends a message to the WebSocket"
+  ([^WebSocket ws msg]
+   (send! ws msg true))
+  ([^WebSocket ws msg last?]
+   (do-send! msg last? ws)))
+
 (defn ^CompletableFuture ping!
   "Sends a Ping message with bytes from the given buffer."
   ([^WebSocket ws]

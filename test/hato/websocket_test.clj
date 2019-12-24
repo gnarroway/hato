@@ -34,11 +34,18 @@
 
 (deftest test-text-messages
   (with-ws-server {:on-receive #(http-kit/send! %1 %2)}
-    (testing "echo server sends back response"
+    (testing "echo server sends back response with send-text!"
       (let [p (promise)
             ws @(websocket "ws://localhost:1234" {:on-text (fn [_ msg _]
                                                              (deliver p (str msg)))})]
         (send-text! ws "Hello World!")
+        (is (= "Hello World!" (deref p 5000 ::timeout)))))
+
+    (testing "echo server sends back response with send!"
+      (let [p (promise)
+            ws @(websocket "ws://localhost:1234" {:on-text (fn [_ msg _]
+                                                             (deliver p (str msg)))})]
+        (send! ws "Hello World!")
         (is (= "Hello World!" (deref p 5000 ::timeout)))))
 
     (testing "can send multiple segments before last is echoed."
@@ -53,11 +60,25 @@
 
 (deftest test-binary-messages
   (with-ws-server {:on-receive #(http-kit/send! %1 %2)}
-    (testing "echo server sends back response"
+    (testing "echo server sends back response with send-binary!"
       (let [p (promise)
             ws @(websocket "ws://localhost:1234" {:on-binary (fn [_ msg _]
                                                                (deliver p (String. (byte-buffer->byte-array msg) "UTF-8")))})]
         (send-binary! ws (ByteBuffer/wrap (.getBytes "Hello World!" "UTF-8")))
+        (is (= "Hello World!" (deref p 5000 ::timeout)))))
+
+    (testing "echo server sends back response with send! and a ByteBuffer"
+      (let [p (promise)
+            ws @(websocket "ws://localhost:1234" {:on-binary (fn [_ msg _]
+                                                               (deliver p (String. (byte-buffer->byte-array msg) "UTF-8")))})]
+        (send! ws (ByteBuffer/wrap (.getBytes "Hello World!" "UTF-8")))
+        (is (= "Hello World!" (deref p 5000 ::timeout)))))
+
+    (testing "echo server sends back response with send! and a byte array"
+      (let [p (promise)
+            ws @(websocket "ws://localhost:1234" {:on-binary (fn [_ msg _]
+                                                               (deliver p (String. (byte-buffer->byte-array msg) "UTF-8")))})]
+        (send! ws (.getBytes "Hello World!" "UTF-8"))
         (is (= "Hello World!" (deref p 5000 ::timeout)))))
 
     (testing "can send multiple segments before last is echoed."
