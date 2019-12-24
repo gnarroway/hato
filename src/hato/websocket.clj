@@ -11,16 +11,18 @@
 
 (defn request->WebSocketListener
   "Constructs a new WebSocket listener to receive events for a given WebSocket connection.
-  :on-open   Called when a `WebSocket` has been connected. Called with the WebSocket instance.
-  :on-text   A textual data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message.
-  :on-binary A binary data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message.
-  :on-ping   A Ping message has been received. Called with the WebSocket instance and the ping message.
-  :on-pong   A Pong message has been received. Called with the WebSocket instance and the pong message.
-  :on-close  Receives a Close message indicating the WebSocket's input has been closed. Called with the WebSocket instance, the status code, and the reason.
-  :on-error  An error has occurred. Called with the WebSocket instance and the error.d."
+  :on-open    Called when a `WebSocket` has been connected. Called with the WebSocket instance.
+  :on-text    A textual data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message.
+  :on-binary  A binary data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message.
+  :on-message A textual/binary data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message.
+  :on-ping    A Ping message has been received. Called with the WebSocket instance and the ping message.
+  :on-pong    A Pong message has been received. Called with the WebSocket instance and the pong message.
+  :on-close   Receives a Close message indicating the WebSocket's input has been closed. Called with the WebSocket instance, the status code, and the reason.
+  :on-error   An error has occurred. Called with the WebSocket instance and the error."
   [{:keys [on-open
            on-text
            on-binary
+           on-message
            on-ping
            on-pong
            on-close
@@ -33,10 +35,14 @@
     (onText [_ ws data last?]
       (when on-text
         (on-text ws data last?))
+      (when on-message
+        (on-message ws data last?))
       (.onText default-websocket-listener ws data last?))
     (onBinary [_ ws data last?]
       (when on-binary
         (on-binary ws data last?))
+      (when on-message
+        (on-message ws data last?))
       (.onBinary default-websocket-listener ws data last?))
     (onPing [_ ws msg]
       (when on-ping

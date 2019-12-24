@@ -452,10 +452,10 @@ The simplest way to get started is with the `websocket` function:
 (require '[hato.websocket :as ws]) 
 
 (let [ws @(ws/websocket "ws://echo.websocket.org"
-                        {:on-text (fn [ws msg last?]
-                                    (println "Received message:" msg))
-                         :on-close (fn [ws status reason]
-                                     (println "WebSocket closed!"))})]
+                        {:on-message (fn [ws msg last?]
+                                       (println "Received message:" msg))
+                         :on-close   (fn [ws status reason]
+                                       (println "WebSocket closed!"))})]
   (ws/send! ws "Hello World!")
   (Thread/sleep 1000)
   (ws/close! ws))
@@ -470,10 +470,10 @@ can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold), to give
 (require '[manifold.deferred :as d]) 
 
 (-> (ws/websocket "ws://echo.websocket.org"
-                  {:on-close (fn [ws status reason]
-                               (println "WebSocket closed!"))
-                   :on-text  (fn [ws msg last?]
-                               (println "Received message:" msg))}) 
+                  {:on-message (fn [ws msg last?]
+                                 (println "Received message:" msg))
+                   :on-close   (fn [ws status reason]
+                                 (println "WebSocket closed!"))}) 
     (d/chain #(ws/send! % "Hello")
              #(ws/send! % "World!")
              #(ws/close! %))
@@ -489,6 +489,7 @@ can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold), to give
   - `:on-open` Called when a `WebSocket` has been connected. Called with the WebSocket instance.
   - `:on-text` A textual data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message.
   - `:on-binary` A binary data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message. 
+  - `:on-message` A textual/binary data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message. 
   - `:on-ping` A Ping message has been received. Called with the WebSocket instance and the ping message.
   - `:on-pong` A Pong message has been received. Called with the WebSocket instance and the pong message. 
   - `:on-close` Receives a Close message indicating the WebSocket's input has been closed. Called with the WebSocket instance, the status code, and the reason.
