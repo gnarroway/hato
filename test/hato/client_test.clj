@@ -76,7 +76,7 @@
       (is (pos-int? (:request-time r)))
       (is (= 200 (:status r)))
       (is (= "https://httpbin.org/get" (:uri r)))
-      (is (= :http-1.1 (:version r)))
+      (is (= :http-2 (:version r)))
       (is (= :get (-> r :request :request-method)))
       (is (= "gzip, deflate" (get-in r [:request :headers "accept-encoding"])))))
 
@@ -112,13 +112,20 @@
                       :eggplant     "Eggplants"
                       :title        "My Awesome Picture"}} (-> r :body (select-keys [:files :form])))))))
 
+(comment
+  (-> (get "https://httpbin.org/stream/3" {:accept :json :as :json-seq})
+      :body)
+
+  (-> @(get "https://jsonplaceholder.typicode.com/posts/1/comments" {:accept :json :as :json :async? true})
+      :body))
+
 (deftest ^:integration test-basic-response-async
   (testing "basic get request returns response map"
     (let [r @(get "https://httpbin.org/get" {:async? true})]
       (is (pos-int? (:request-time r)))
       (is (= 200 (:status r)))
       (is (= "https://httpbin.org/get" (:uri r)))
-      (is (= :http-1.1 (:version r)))
+      (is (= :http-2 (:version r)))
       (is (= :get (-> r :request :request-method)))
       (is (= "gzip, deflate" (get-in r [:request :headers "accept-encoding"])))))
 
