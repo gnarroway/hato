@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [Unreleased]
+### Added
+- Websocket support (thanks @vincentjames501)
+
 ## [0.4.1] - 2011-11-19
 ### Fixed
 - Remove reflection warnings
