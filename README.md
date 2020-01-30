@@ -484,24 +484,23 @@ can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold), to give
 
 `uri` A WebSocket uri (e.g. `"ws://echo.websocket.org"`).
 
-`listener` A WebSocket listener. Can either be a `WebSocket$Listener` or a map with one or more of the following keys:
 
+`opts` Additional options may be a map of any of the following keys:
+
+  - `:http-client` An `HttpClient` (e.g. created by `hato.client/build-http-client`). If not provided, a default client will be used.
+  - `:headers` Adds the given name-value pair to the list of additional HTTP headers sent during the opening handshake.
+  - `:connect-timeout` Sets a timeout for establishing a WebSocket connection, in milliseconds.
+  - `:subprotocols` Sets a request for the given subprotocols.
+  - `:listener` A WebSocket listener. If a `WebSocket$Listener` is provided, it will be used directly.
+  Otherwise one will be created from any handlers (`on-<event>`) passed into the options map.
+  
   - `:on-open` Called when a `WebSocket` has been connected. Called with the WebSocket instance.
-  - `:on-text` A textual data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message.
-  - `:on-binary` A binary data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message. 
   - `:on-message` A textual/binary data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message. 
   - `:on-ping` A Ping message has been received. Called with the WebSocket instance and the ping message.
   - `:on-pong` A Pong message has been received. Called with the WebSocket instance and the pong message. 
   - `:on-close` Receives a Close message indicating the WebSocket's input has been closed. Called with the WebSocket instance, the status code, and the reason.
   - `:on-error` An error has occurred. Called with the WebSocket instance and the error.
-  
-`http-client` An `HttpClient` or a map as above in the HTTP client.
-
-`opts` Additional options may be a map of one or more of the following:
-
-  - `headers` Adds the given name-value pair to the list of additional HTTP headers sent during the opening handshake.
-  - `connect-timeout` Sets a timeout for establishing a WebSocket connection.
-  - `subprotocols` Sets a request for the given subprotocols.
+    
 
 ### Debugging
 
