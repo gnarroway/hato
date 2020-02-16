@@ -1,7 +1,7 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## [Unreleased]
+## [0.5.0]
 ### Added
 - Websocket support (thanks @vincentjames501)
 
@@ -33,6 +33,7 @@ users to make their own request function from some stack of middleware.
 - Initial release
 
 [Unreleased]: https://github.com/gnarroway/hato/compare/v0.4.1...HEAD
+[0.5.0]: https://github.com/gnarroway/hato/compare/v0.4.1...0.5.0
 [0.4.1]: https://github.com/gnarroway/hato/compare/v0.4.0...0.4.1
 [0.4.0]: https://github.com/gnarroway/hato/compare/v0.3.1...0.4.0
 [0.3.1]: https://github.com/gnarroway/hato/compare/v0.3.0...v0.3.1
