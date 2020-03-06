@@ -1,0 +1,14 @@
+language: clojure
+script: lein test
+
+## openjdk has some problems on staging.travis.org. Certificates to clojars.org are missing.
+## so for the moment I disable it. Come back here later on, check
+## https://github.com/travis-ci/travis-ci/issues/9368
+
+matrix:
+  include:
+    - jdk: openjdk11
+
+notifications:
+  slack:
+    secure: avvMZRXVsixGTaSDXYOO06Q4K4e/u0/XQBY7QoRLUtDjesCT9iG9WPqOkEGUAgQ4G/+hNFdIVh4POuL/gVVW/cJ2Nmvmne2kywXck+DJawVlJfIF6Wh+0y961XmlDAOZomN0n8o5MN+2WJvXlfPgcDTcdCeZrtTOTAzdwQd7wDqPV4Vh0GyQYXe2pSVkhahwkVqpQ2pjcMhG5u4r2flW7XzZAr6pQeDJx033tIntUzrwsUOY3gaor8RwMxWzlrQjATPqhuvIHmKMtbi5ByPXfqfXGqR862qhabpiDy6qquZYSckFkeshF2Ht/cS9cwJ2yzu2aKe+s6G1QfFe8rtMjem3YYuIytrwDNDTV6iafvqJhYBcCCitjcfyBy5ZX8cRHhXD5xhZGk4Ex3dZsd7otTaTRET1mdLJ9FFd+OJu5FLcge0kSQlh8tcmLts1kECMIVUL+hojXZRsxQQ0tCsQOaX8lETd0M5TuTg7S3J17u3R8dTwSfNZDoDI7IhRo50OEHlsvB71LjPQFz5vZtEGeD6LuG80MRC3iVRZTqrdlnB1as9WLPVikN2nwEV/8aLHI0ByBgzOUIJ0YXTetdZJbomvr8Jrgl24G4fgBREw/pN0SJ6ddhWouXdSpERA2Wob+4c0Qqqz32gjxQRhkg8OH9x8uCpUyvNgAOA4tJFgTb0=

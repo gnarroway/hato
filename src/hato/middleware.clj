@@ -1,24 +1,25 @@
 (ns hato.middleware
   "Adapted from https://www.github.com/dakrone/clj-http"
   (:require
-   [clojure.edn :as edn]
-   [clojure.java.io :as io]
-   [clojure.string :as str]
-   [clojure.walk :refer [prewalk]]
-   [hato.multipart :as multipart])
+    [clojure.edn :as edn]
+    [clojure.java.io :as io]
+    [clojure.string :as str]
+    [clojure.walk :refer [prewalk]]
+    [hato.multipart :as multipart]
+    [muuntaja.core :as m])
   (:import
-   (java.util
-    Base64)
-   (java.io
-    InputStream
-    ByteArrayInputStream
-    ByteArrayOutputStream BufferedInputStream)
-   (java.net
-    URLDecoder
-    URLEncoder
-    URL)
-   (java.util.zip
-    GZIPInputStream InflaterInputStream ZipException Inflater)))
+    (java.util
+      Base64)
+    (java.io
+      InputStream
+      ByteArrayInputStream
+      ByteArrayOutputStream BufferedInputStream)
+    (java.net
+      URLDecoder
+      URLEncoder
+      URL)
+    (java.util.zip
+      GZIPInputStream InflaterInputStream ZipException Inflater)))
 
 ;; Cheshire is an optional dependency, so we check for it at compile time.
 
@@ -26,7 +27,7 @@
 (def json-enabled?
   (try
     (require
-     'cheshire.core)
+      'cheshire.core)
     true
     (catch Throwable _ false)))
 
@@ -34,7 +35,7 @@
 (def transit-enabled?
   (try
     (require
-     'cognitect.transit)
+      'cognitect.transit)
     true
     (catch Throwable _ false)))
 
@@ -130,8 +131,8 @@
     (-> path-or-query
         (str/replace " " "%20")
         (str/replace
-         #"[^a-zA-Z0-9\.\-\_\~\!\$\&\'\(\)\*\+\,\;\=\:\@\/\%\?]"
-         url-encode))))
+          #"[^a-zA-Z0-9\.\-\_\~\!\$\&\'\(\)\*\+\,\;\=\:\@\/\%\?]"
+          url-encode))))
 
 (defn parse-url
   "Parse a URL string into a map of interesting parts."
@@ -179,26 +180,41 @@
 (defmulti coerce-response-body (fn [req _] (:as req)))
 
 (defn coerce-json-body
-  [{:keys [coerce]} {:keys [body status] :as resp} keyword? strict?]
+  [{:keys [coerce]} {:keys [body status] :as resp} #_#_keyword? strict?]
   (let [^String charset (or (-> resp :content-type-params :charset)
-                            "UTF-8")
-        ; TODO consider using stream
-        decode-func (if strict? json-decode-strict json-decode)]
-    (if json-enabled?
-      (cond
-        (= coerce :always)
-        (assoc resp :body (decode-func (String. ^"[B" body charset) keyword?))
+                            "UTF-8")]
+    (cond
+      (= coerce :always)
+      (assoc resp :body (m/decode m/instance "application/json" body charset))
 
-        (and (unexceptional-status? status)
-             (or (nil? coerce) (= coerce :unexceptional)))
-        (assoc resp :body (decode-func (String. ^"[B" body charset) keyword?))
+      (and (unexceptional-status? status)
+           (or (nil? coerce) (= coerce :unexceptional)))
+      (assoc resp :body (m/decode m/instance "application/json" body charset))
 
-        (and (not (unexceptional-status? status)) (= coerce :exceptional))
-        (assoc resp :body (decode-func (String. ^"[B" body charset) keyword?))
+      (and (not (unexceptional-status? status)) (= coerce :exceptional))
+      (assoc resp :body (m/decode m/instance "application/json" body charset))
 
-        :else (assoc resp :body (String. ^"[B" body charset)))
+      :else (assoc resp :body body)))
 
-      (assoc resp :body (String. ^"[B" body charset)))))
+  #_(let [^String charset (or (-> resp :content-type-params :charset)
+                              "UTF-8")
+          ; TODO consider using stream
+          decode-func (if strict? json-decode-strict json-decode)]
+      (if json-enabled?
+        (cond
+          (= coerce :always)
+          (assoc resp :body (decode-func (String. ^"[B" body charset) keyword?))
+
+          (and (unexceptional-status? status)
+               (or (nil? coerce) (= coerce :unexceptional)))
+          (assoc resp :body (decode-func (String. ^"[B" body charset) keyword?))
+
+          (and (not (unexceptional-status? status)) (= coerce :exceptional))
+          (assoc resp :body (decode-func (String. ^"[B" body charset) keyword?))
+
+          :else (assoc resp :body (String. ^"[B" body charset)))
+
+        (assoc resp :body (String. ^"[B" body charset)))))
 
 (defn coerce-clojure-body
   [_ {:keys [body] :as resp}]
@@ -214,16 +230,16 @@
     resp))
 
 (defmethod coerce-response-body :json [req resp]
-  (coerce-json-body req resp true false))
+  (coerce-json-body req resp #_#_true false))
 
-(defmethod coerce-response-body :json-strict [req resp]
-  (coerce-json-body req resp true true))
-
-(defmethod coerce-response-body :json-strict-string-keys [req resp]
-  (coerce-json-body req resp false true))
-
-(defmethod coerce-response-body :json-string-keys [req resp]
-  (coerce-json-body req resp false false))
+;(defmethod coerce-response-body :json-strict [req resp]
+;  (coerce-json-body req resp true true))
+;
+;(defmethod coerce-response-body :json-strict-string-keys [req resp]
+;  (coerce-json-body req resp false true))
+;
+;(defmethod coerce-response-body :json-string-keys [req resp]
+;  (coerce-json-body req resp false false))
 
 (defmethod coerce-response-body :clojure [req resp]
   (coerce-clojure-body req resp))
@@ -241,8 +257,9 @@
   resp)
 
 (defmethod coerce-response-body :default
-  [_ {:keys [^"[B" body] :as resp}]
-  (assoc resp :body (String. body "UTF-8")))
+  [_ resp]
+  (assoc resp :body
+              (m/decode-response-body resp)))
 
 (defn- output-coercion-response
   [req {:keys [body] :as resp}]
@@ -331,10 +348,10 @@
   "Given a charset header, detect the charset, returns UTF-8 if not found."
   [content-type]
   (or
-   (when-let [found (when content-type
-                      (re-find #"(?i)charset\s*=\s*([^\s]+)" content-type))]
-     (second found))
-   "UTF-8"))
+    (when-let [found (when content-type
+                       (re-find #"(?i)charset\s*=\s*([^\s]+)" content-type))]
+      (second found))
+    "UTF-8"))
 
 (defn- multi-param-suffix [index multi-param-style]
   (case multi-param-style
@@ -347,10 +364,10 @@
             (mapcat (fn [[k v]]
                       (if (sequential? v)
                         (map-indexed
-                         #(str (URLEncoder/encode (name k) encoding)
-                               (multi-param-suffix %1 multi-param-style)
-                               "="
-                               (URLEncoder/encode (str %2) encoding)) v)
+                          #(str (URLEncoder/encode (name k) encoding)
+                                (multi-param-suffix %1 multi-param-style)
+                                "="
+                                (URLEncoder/encode (str %2) encoding)) v)
                         [(str (URLEncoder/encode (name k) encoding)
                               "="
                               (URLEncoder/encode (str v) encoding))]))
@@ -372,9 +389,9 @@
                        (str old-query-string "&" new-query-string)
                        new-query-string))
                    (generate-query-string
-                    query-params
-                    (content-type-value content-type)
-                    multi-param-style)))
+                     query-params
+                     (content-type-value content-type)
+                     multi-param-style)))
     req))
 
 (defn wrap-query-params
@@ -461,7 +478,7 @@
      (client (method-request req) respond raise))))
 
 (defmulti coerce-form-params
-  (fn [req] (keyword (content-type-value (:content-type req)))))
+          (fn [req] (keyword (content-type-value (:content-type req)))))
 
 (defmethod coerce-form-params :application/edn
   [{:keys [form-params]}]
@@ -603,7 +620,7 @@
 ;; Multimethods for Content-Encoding dispatch automatically
 ;; decompressing response bodies
 (defmulti decompress-body
-  (fn [resp] (get-in resp [:headers "content-encoding"])))
+          (fn [resp] (get-in resp [:headers "content-encoding"])))
 
 (defmethod decompress-body "gzip"
   [resp]
@@ -646,16 +663,16 @@
   [request param-key]
   (if-let [params (request param-key)]
     (assoc request param-key
-           (prewalk
-            #(if (and (vector? %) (map? (second %)))
-               (let [[fk m] %]
-                 (reduce
-                  (fn [m [sk v]]
-                    (assoc m (str (name fk) "[" (name sk) "]") v))
-                  {}
-                  m))
-               %)
-            params))
+                   (prewalk
+                     #(if (and (vector? %) (map? (second %)))
+                        (let [[fk m] %]
+                          (reduce
+                            (fn [m [sk v]]
+                              (assoc m (str (name fk) "[" (name sk) "]") v))
+                            {}
+                            m))
+                        %)
+                     params))
     request))
 
 (defn nest-params-request
@@ -665,19 +682,19 @@
              (or (some? (opt req :ignore-nested-query-string))
                  (some? (opt req :flatten-nested-form-params))))
     (throw (IllegalArgumentException.
-            (str "only :flatten-nested-keys or :ignore-nested-query-string/"
-                 ":flatten-nested-form-params may be specified, not both"))))
+             (str "only :flatten-nested-keys or :ignore-nested-query-string/"
+                  ":flatten-nested-form-params may be specified, not both"))))
   (let [form-urlencoded? (or (nil? content-type)
                              (= content-type :x-www-form-urlencoded))
         flatten-form? (opt req :flatten-nested-form-params)
         nested-keys (or flatten-nested-keys
                         (cond-> []
-                          (not (opt req :ignore-nested-query-string))
-                          (conj :query-params)
+                                (not (opt req :ignore-nested-query-string))
+                                (conj :query-params)
 
-                          (and form-urlencoded?
-                               (true? flatten-form?))
-                          (conj :form-params)))]
+                                (and form-urlencoded?
+                                     (true? flatten-form?))
+                                (conj :form-params)))]
     (reduce nest-params req nested-keys)))
 
 (defn wrap-nested-params
