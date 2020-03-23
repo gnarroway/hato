@@ -1,10 +1,14 @@
 # hato
 
+<!--
 [![Clojars Project](https://img.shields.io/clojars/v/hato.svg)](https://clojars.org/hato)
 
 [![CircleCI](https://circleci.com/gh/gnarroway/hato.svg?style=svg)](https://circleci.com/gh/gnarroway/hato)
+-->
 
-An HTTP client for Clojure, wrapping JDK 11's [HttpClient](https://openjdk.java.net/groups/net/httpclient/intro.html).
+An HTTP client for Clojure.
+ 
+Hato is wrapping JDK 11's [HttpClient](https://openjdk.java.net/groups/net/httpclient/intro.html).
 
 It supports both HTTP/1.1 and HTTP/2, with synchronous and asynchronous execution modes as well as websockets.
 
@@ -21,7 +25,7 @@ Please try it out and raise any issues you may find.
 
 hato requires JDK 11 and above. If you are running an older version of Java, please look at [clj-http](https://github.com/dakrone/clj-http).
 
-For Leinengen, add this to your project.clj
+For Leiningen, add this to your project.clj
 
 ```clojure
 [hato "0.5.0"]
@@ -34,7 +38,6 @@ The main client is available in `hato.client`.
 Require it to get started and make a request:
 
 ```clojure
-
 (ns my.app
   (:require [hato.client :as hc]))
   
@@ -131,14 +134,13 @@ request and returns a response. Convenience wrappers are provided for the http v
 
 #### request options
 
-`method`Lowercase keyword corresponding to a HTTP request method, such as :get or :post. 
+`method`Lowercase keyword corresponding to a HTTP request method, such as `:get` or `:post`. 
 
 `url` An absolute url to the requested resource (e.g. `"http://moo.com/api/1"`).
  
-`accept` Sets the `accept` header. a keyword (e.g. `:json`, for any application/* type) or string (e.g. `"text/html"`) for anything else. 
+`accept` Sets the `accept` header. A keyword (e.g. `:json`, for any application/* type) or string (e.g. `"text/html"`) for any other accepted content type, or a sequential collection thereof.
   
-`accept-encoding` List of string/keywords (e.g. `[:gzip]`). By default, "gzip, deflate" will be concatenated
-  unless `decompress-body?` is false.
+`accept-encoding` Sequential collection of of string/keywords (e.g. `[:gzip]`). By default, "gzip, deflate" will be concatenated unless `decompress-body?` is false.
 
 `content-type` a keyword (e.g. `:json`, for any application/* type) or string (e.g. "text/html") for anything else. 
   Sets the appropriate header.

@@ -71,6 +71,15 @@
     (is (thrown? Exception (build-http-client {:version :not-valid-value})))))
 
 (deftest ^:integration test-basic-response
+  (testing "basic head request returns response map"
+    (let [r (head "https://httpbin.org/get")]
+      (is (pos-int? (:request-time r)))
+      (is (= 200 (:status r)))
+      (is (= "https://httpbin.org/get" (:uri r)))
+      (is (= :http-2 (:version r)))
+      (is (= :head (-> r :request :request-method)))
+      (is (= "gzip, deflate" (get-in r [:request :headers "accept-encoding"])))))
+
   (testing "basic get request returns response map"
     (let [r (get "https://httpbin.org/get")]
       (is (pos-int? (:request-time r)))
@@ -87,6 +96,7 @@
     (let [r (get "https://httpbin.org/get?foo=bar%3Cbee")]
       (is (= "https://httpbin.org/get?foo=bar%3Cbee" (:uri r)) "does not double encode")))
 
+  #_(head "https://httpbin.org/status/200")
   (testing "verbs exist"
     (are [fn] (= 200 (:status (fn "https://httpbin.org/status/200")))
       get
@@ -143,9 +153,9 @@
     (is (= 500 (:status (get "https://httpbin.org/status/500" {:throw-exceptions false}))))))
 
 (deftest ^:integration test-coercions
-  (testing "as default"
+  (testing "as default, depends on Content-Type header"
     (let [r (get "https://httpbin.org/get")]
-      (is (string? (:body r)))))
+      (is (coll? (:body r)))))
 
   (testing "as byte array"
     (let [r (get "https://httpbin.org/get" {:as :byte-array})]
@@ -180,6 +190,10 @@
       (is (= 200 (:status r))))
 
     (is (thrown? Exception (get "https://httpbin.org/basic-auth/user/pass" {:basic-auth {:user "user" :pass "invalid"}})))))
+
+(let [redirect-to "https://httpbin.org/get"
+      uri (format "https://httpbin.org/redirect-to?url=%s" redirect-to)]
+  (get uri {:as :string}))
 
 (deftest ^:integration test-redirects
   (let [redirect-to "https://httpbin.org/get"

@@ -6,7 +6,8 @@
     [clojure.string :as str]
     [clojure.walk :refer [prewalk]]
     [hato.multipart :as multipart]
-    [muuntaja.core :as m])
+    [muuntaja.core :as m]
+    [hato.format.text :as format.text])
   (:import
     (java.util
       Base64)
@@ -20,6 +21,14 @@
       URL)
     (java.util.zip
       GZIPInputStream InflaterInputStream ZipException Inflater)))
+
+
+(def muuntaja-instance
+  (m/create
+    (-> muuntaja.core/default-options
+        (assoc-in [:formats "text"] format.text/generic)
+        )))
+
 
 ;; Cheshire is an optional dependency, so we check for it at compile time.
 
@@ -179,76 +188,9 @@
 ;; Multimethods for coercing body type to the :as key
 (defmulti coerce-response-body (fn [req _] (:as req)))
 
-(defn coerce-json-body
-  [{:keys [coerce]} {:keys [body status] :as resp} #_#_keyword? strict?]
-  (let [^String charset (or (-> resp :content-type-params :charset)
-                            "UTF-8")]
-    (cond
-      (= coerce :always)
-      (assoc resp :body (m/decode m/instance "application/json" body charset))
-
-      (and (unexceptional-status? status)
-           (or (nil? coerce) (= coerce :unexceptional)))
-      (assoc resp :body (m/decode m/instance "application/json" body charset))
-
-      (and (not (unexceptional-status? status)) (= coerce :exceptional))
-      (assoc resp :body (m/decode m/instance "application/json" body charset))
-
-      :else (assoc resp :body body)))
-
-  #_(let [^String charset (or (-> resp :content-type-params :charset)
-                              "UTF-8")
-          ; TODO consider using stream
-          decode-func (if strict? json-decode-strict json-decode)]
-      (if json-enabled?
-        (cond
-          (= coerce :always)
-          (assoc resp :body (decode-func (String. ^"[B" body charset) keyword?))
-
-          (and (unexceptional-status? status)
-               (or (nil? coerce) (= coerce :unexceptional)))
-          (assoc resp :body (decode-func (String. ^"[B" body charset) keyword?))
-
-          (and (not (unexceptional-status? status)) (= coerce :exceptional))
-          (assoc resp :body (decode-func (String. ^"[B" body charset) keyword?))
-
-          :else (assoc resp :body (String. ^"[B" body charset)))
-
-        (assoc resp :body (String. ^"[B" body charset)))))
-
-(defn coerce-clojure-body
-  [_ {:keys [body] :as resp}]
+(defmethod coerce-response-body :clojure [_ {:keys [body] :as resp}]
   (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")]
     (assoc resp :body (edn/read-string (String. ^"[B" body charset)))))
-
-(defn coerce-transit-body
-  [{:keys [transit-opts]} {:keys [body] :as resp} type]
-  (if transit-enabled?
-    (with-open [bs (ByteArrayInputStream. body)]
-      (assoc resp :body (parse-transit bs type transit-opts)))
-
-    resp))
-
-(defmethod coerce-response-body :json [req resp]
-  (coerce-json-body req resp #_#_true false))
-
-;(defmethod coerce-response-body :json-strict [req resp]
-;  (coerce-json-body req resp true true))
-;
-;(defmethod coerce-response-body :json-strict-string-keys [req resp]
-;  (coerce-json-body req resp false true))
-;
-;(defmethod coerce-response-body :json-string-keys [req resp]
-;  (coerce-json-body req resp false false))
-
-(defmethod coerce-response-body :clojure [req resp]
-  (coerce-clojure-body req resp))
-
-(defmethod coerce-response-body :transit+json [req resp]
-  (coerce-transit-body req resp :json))
-
-(defmethod coerce-response-body :transit+msgpack [req resp]
-  (coerce-transit-body req resp :msgpack))
 
 (defmethod coerce-response-body :byte-array [_ resp]
   resp)
@@ -256,29 +198,42 @@
 (defmethod coerce-response-body :stream [_ resp]
   resp)
 
+(defmethod coerce-response-body :string [_ {:keys [body] :as resp}]
+  (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")]
+    (assoc resp :body (String. ^"[B" body charset))))
+
 (defmethod coerce-response-body :default
   [_ resp]
-  (assoc resp :body
-              (m/decode-response-body resp)))
+  (try
+    (let [decoded (m/decode-response-body muuntaja-instance resp)]
+      (assoc resp :body decoded))
+    (catch Exception e
+      (update resp
+              :hato/errors conj e))))
 
-(defn- output-coercion-response
+(defn- response-body-coercion
   [req {:keys [body] :as resp}]
   (if body
     (coerce-response-body req resp)
     resp))
 
-(defn wrap-output-coercion
+(defn wrap-response-body-coercion
   "Middleware converting a response body from a byte-array to a different object.
   Defaults to a String if no :as key is specified, the `coerce-response-body`
   multimethod may be extended to add additional coercions."
-  [client]
-  (fn
-    ([req]
-     (output-coercion-response req (client req)))
-    ([req respond raise]
-     (client req
-             #(respond (output-coercion-response req %))
-             raise))))
+  ([client]
+   (wrap-response-body-coercion
+     muuntaja.core/instance
+     client))
+  ([muuntaja-or-options client]
+   (fn
+     ([req]
+      (response-body-coercion req (client req)))
+     ([req respond raise]
+      (client req
+              #(respond (response-body-coercion req %))
+              raise))))
+  )
 
 (defn content-type-value [type]
   (if (keyword? type)
@@ -524,14 +479,24 @@
                            multi-param-style)))
 
 (defn- form-params-request
-  [{:keys [form-params content-type request-method]
+  [{:keys [form-params content-type request-method multi-param-style]
     :or   {content-type :x-www-form-urlencoded}
     :as   req}]
   (if (and form-params (#{:post :put :patch :delete} request-method))
-    (-> req
-        (dissoc :form-params)
-        (assoc :content-type (content-type-value content-type)
-               :body (coerce-form-params req)))
+    (if (= :x-www-form-urlencoded content-type)
+      (as-> req $
+            (dissoc $ :form-params)
+            (assoc $ :content-type (content-type-value content-type))
+            (content-type-request $)
+            (assoc $ :body
+                     (generate-query-string
+                       form-params
+                       (content-type-value content-type)
+                       multi-param-style)))
+      (as-> req $
+            (dissoc $ :form-params)
+            (assoc $ :body form-params)
+            (assoc $ :body (m/encode-request-body muuntaja-instance $))))
     req))
 
 (defn wrap-form-params
@@ -737,7 +702,7 @@
    wrap-url
 
    wrap-decompression
-   wrap-output-coercion
+   wrap-response-body-coercion
    wrap-exceptions
    wrap-accept
    wrap-accept-encoding
