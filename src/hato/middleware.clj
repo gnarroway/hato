@@ -1,33 +1,31 @@
 (ns hato.middleware
   "Adapted from https://www.github.com/dakrone/clj-http"
   (:require
-    [clojure.edn :as edn]
-    [clojure.java.io :as io]
-    [clojure.string :as str]
-    [clojure.walk :refer [prewalk]]
-    [hato.multipart :as multipart]
-    [muuntaja.core :as m]
-    [hato.format.text :as format.text])
+   [clojure.edn :as edn]
+   [clojure.java.io :as io]
+   [clojure.string :as str]
+   [clojure.walk :refer [prewalk]]
+   [hato.multipart :as multipart]
+   [muuntaja.core :as m]
+   [hato.format.text :as format.text])
   (:import
-    (java.util
-      Base64)
-    (java.io
-      InputStream
-      ByteArrayInputStream
-      ByteArrayOutputStream BufferedInputStream)
-    (java.net
-      URLDecoder
-      URLEncoder
-      URL)
-    (java.util.zip
-      GZIPInputStream InflaterInputStream ZipException Inflater)))
-
+   (java.util
+    Base64)
+   (java.io
+    InputStream
+    ByteArrayInputStream
+    ByteArrayOutputStream BufferedInputStream)
+   (java.net
+    URLDecoder
+    URLEncoder
+    URL)
+   (java.util.zip
+    GZIPInputStream InflaterInputStream ZipException Inflater)))
 
 (def muuntaja-instance
   (m/create
-    (-> muuntaja.core/default-options
-        (assoc-in [:formats "text"] format.text/generic)
-        )))
+   (-> muuntaja.core/default-options
+       (assoc-in [:formats "text"] format.text/generic))))
 
 
 ;; Cheshire is an optional dependency, so we check for it at compile time.
@@ -36,7 +34,7 @@
 (def json-enabled?
   (try
     (require
-      'cheshire.core)
+     'cheshire.core)
     true
     (catch Throwable _ false)))
 
@@ -44,7 +42,7 @@
 (def transit-enabled?
   (try
     (require
-      'cognitect.transit)
+     'cognitect.transit)
     true
     (catch Throwable _ false)))
 
@@ -140,8 +138,8 @@
     (-> path-or-query
         (str/replace " " "%20")
         (str/replace
-          #"[^a-zA-Z0-9\.\-\_\~\!\$\&\'\(\)\*\+\,\;\=\:\@\/\%\?]"
-          url-encode))))
+         #"[^a-zA-Z0-9\.\-\_\~\!\$\&\'\(\)\*\+\,\;\=\:\@\/\%\?]"
+         url-encode))))
 
 (defn parse-url
   "Parse a URL string into a map of interesting parts."
@@ -223,8 +221,8 @@
   multimethod may be extended to add additional coercions."
   ([client]
    (wrap-response-body-coercion
-     muuntaja.core/instance
-     client))
+    muuntaja.core/instance
+    client))
   ([muuntaja-or-options client]
    (fn
      ([req]
@@ -232,8 +230,7 @@
      ([req respond raise]
       (client req
               #(respond (response-body-coercion req %))
-              raise))))
-  )
+              raise)))))
 
 (defn content-type-value [type]
   (if (keyword? type)
@@ -303,10 +300,10 @@
   "Given a charset header, detect the charset, returns UTF-8 if not found."
   [content-type]
   (or
-    (when-let [found (when content-type
-                       (re-find #"(?i)charset\s*=\s*([^\s]+)" content-type))]
-      (second found))
-    "UTF-8"))
+   (when-let [found (when content-type
+                      (re-find #"(?i)charset\s*=\s*([^\s]+)" content-type))]
+     (second found))
+   "UTF-8"))
 
 (defn- multi-param-suffix [index multi-param-style]
   (case multi-param-style
@@ -319,10 +316,10 @@
             (mapcat (fn [[k v]]
                       (if (sequential? v)
                         (map-indexed
-                          #(str (URLEncoder/encode (name k) encoding)
-                                (multi-param-suffix %1 multi-param-style)
-                                "="
-                                (URLEncoder/encode (str %2) encoding)) v)
+                         #(str (URLEncoder/encode (name k) encoding)
+                               (multi-param-suffix %1 multi-param-style)
+                               "="
+                               (URLEncoder/encode (str %2) encoding)) v)
                         [(str (URLEncoder/encode (name k) encoding)
                               "="
                               (URLEncoder/encode (str v) encoding))]))
@@ -344,9 +341,9 @@
                        (str old-query-string "&" new-query-string)
                        new-query-string))
                    (generate-query-string
-                     query-params
-                     (content-type-value content-type)
-                     multi-param-style)))
+                    query-params
+                    (content-type-value content-type)
+                    multi-param-style)))
     req))
 
 (defn wrap-query-params
@@ -433,7 +430,7 @@
      (client (method-request req) respond raise))))
 
 (defmulti coerce-form-params
-          (fn [req] (keyword (content-type-value (:content-type req)))))
+  (fn [req] (keyword (content-type-value (:content-type req)))))
 
 (defmethod coerce-form-params :application/edn
   [{:keys [form-params]}]
@@ -485,18 +482,18 @@
   (if (and form-params (#{:post :put :patch :delete} request-method))
     (if (= :x-www-form-urlencoded content-type)
       (as-> req $
-            (dissoc $ :form-params)
-            (assoc $ :content-type (content-type-value content-type))
-            (content-type-request $)
-            (assoc $ :body
-                     (generate-query-string
-                       form-params
-                       (content-type-value content-type)
-                       multi-param-style)))
+        (dissoc $ :form-params)
+        (assoc $ :content-type (content-type-value content-type))
+        (content-type-request $)
+        (assoc $ :body
+               (generate-query-string
+                form-params
+                (content-type-value content-type)
+                multi-param-style)))
       (as-> req $
-            (dissoc $ :form-params)
-            (assoc $ :body form-params)
-            (assoc $ :body (m/encode-request-body muuntaja-instance $))))
+        (dissoc $ :form-params)
+        (assoc $ :body form-params)
+        (assoc $ :body (m/encode-request-body muuntaja-instance $))))
     req))
 
 (defn wrap-form-params
@@ -585,7 +582,7 @@
 ;; Multimethods for Content-Encoding dispatch automatically
 ;; decompressing response bodies
 (defmulti decompress-body
-          (fn [resp] (get-in resp [:headers "content-encoding"])))
+  (fn [resp] (get-in resp [:headers "content-encoding"])))
 
 (defmethod decompress-body "gzip"
   [resp]
@@ -628,16 +625,16 @@
   [request param-key]
   (if-let [params (request param-key)]
     (assoc request param-key
-                   (prewalk
-                     #(if (and (vector? %) (map? (second %)))
-                        (let [[fk m] %]
-                          (reduce
-                            (fn [m [sk v]]
-                              (assoc m (str (name fk) "[" (name sk) "]") v))
-                            {}
-                            m))
-                        %)
-                     params))
+           (prewalk
+            #(if (and (vector? %) (map? (second %)))
+               (let [[fk m] %]
+                 (reduce
+                  (fn [m [sk v]]
+                    (assoc m (str (name fk) "[" (name sk) "]") v))
+                  {}
+                  m))
+               %)
+            params))
     request))
 
 (defn nest-params-request
@@ -647,19 +644,19 @@
              (or (some? (opt req :ignore-nested-query-string))
                  (some? (opt req :flatten-nested-form-params))))
     (throw (IllegalArgumentException.
-             (str "only :flatten-nested-keys or :ignore-nested-query-string/"
-                  ":flatten-nested-form-params may be specified, not both"))))
+            (str "only :flatten-nested-keys or :ignore-nested-query-string/"
+                 ":flatten-nested-form-params may be specified, not both"))))
   (let [form-urlencoded? (or (nil? content-type)
                              (= content-type :x-www-form-urlencoded))
         flatten-form? (opt req :flatten-nested-form-params)
         nested-keys (or flatten-nested-keys
                         (cond-> []
-                                (not (opt req :ignore-nested-query-string))
-                                (conj :query-params)
+                          (not (opt req :ignore-nested-query-string))
+                          (conj :query-params)
 
-                                (and form-urlencoded?
-                                     (true? flatten-form?))
-                                (conj :form-params)))]
+                          (and form-urlencoded?
+                               (true? flatten-form?))
+                          (conj :form-params)))]
     (reduce nest-params req nested-keys)))
 
 (defn wrap-nested-params

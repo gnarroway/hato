@@ -17,7 +17,6 @@
 (defmethod as-string :default [x]
   x)
 
-
 (deftest test-wrap-request-timing
   (let [r ((wrap-request-timing (fn [x] (Thread/sleep 1) x)) {})]
     (is (< 0 (:request-time r) 10))))
@@ -61,9 +60,9 @@
         (is (= flattened (:query-params ((wrap-nested-params identity) {:query-params params :flatten-nested-keys [:query-params]})))))
 
       (testing "throws if multiple methods specified"
-        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:query-params params
+        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:query-params               params
                                                                               :ignore-nested-query-string true
-                                                                              :flatten-nested-keys [:query-params]})))))
+                                                                              :flatten-nested-keys        [:query-params]})))))
 
     (testing "form params"
       (testing "does not nest by default"
@@ -76,9 +75,9 @@
         (is (= flattened (:form-params ((wrap-nested-params identity) {:form-params params :flatten-nested-keys [:form-params]})))))
 
       (testing "throws if multiple methods specified"
-        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:form-params params
+        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:form-params                params
                                                                               :flatten-nested-form-params true
-                                                                              :flatten-nested-keys [:form-params]})))))))
+                                                                              :flatten-nested-keys        [:form-params]})))))))
 
 (deftest test-wrap-basic-auth
   (testing "encoding"
@@ -165,17 +164,17 @@
       (is (not (contains? r :headers))))))
 
 #_;
-    ((wrap-response-body-coercion
-       (wrap-content-type
-         (constantly {:status 200
-                      :body   (.getBytes "{\"a\": 1}")})))
-     {:as :json :coerce :unexceptional})
+  ((wrap-response-body-coercion
+    (wrap-content-type
+     (constantly {:status 200
+                  :body   (.getBytes "{\"a\": 1}")})))
+   {:as :json :coerce :unexceptional})
 
 (deftest test-wrap-output-coercion
   (testing "coerces is not depending on status"
     (are [expected status] (= expected (-> ((wrap-response-body-coercion (wrap-content-type (constantly {:status status :body (.getBytes "{\"a\": 1}")}))) {:as :json}) :body))
-                           {:a 1} 200
-                           {:a 1} 300))
+      {:a 1} 200
+      {:a 1} 300))
 
   (testing "json coercions"
     (= {:a 1} (-> ((wrap-response-body-coercion (constantly {:status 200 :body (.getBytes "{\"a\": 1}")})) {:as :json}) :body)))
@@ -257,8 +256,7 @@
               :request-method :post})]
       (is (= :post (:request-method r)))
       (is (= "application/x-www-form-urlencoded" ((:headers r) "content-type")))
-      (is (= "moo=cow+boy%21" (as-string (:body r))))
-      ))
+      (is (= "moo=cow+boy%21" (as-string (:body r))))))
   (testing "coercing to json"
     (let [r ((wrap-content-type (wrap-form-params identity)) {:form-params {:moo "cow boy!"} :request-method :post :content-type :json})]
       (is (= :post (:request-method r)))

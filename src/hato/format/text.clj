@@ -15,18 +15,18 @@
     core/EncodeToBytes
     (encode-to-bytes [_ data charset]
       (.getBytes
-        (str data)
-        ^String charset))
+       (str data)
+       ^String charset))
     core/EncodeToOutputStream
     (encode-to-output-stream [_ data charset]
       (fn [^OutputStream output-stream]
         (.write output-stream (.getBytes
-                                (str data)
-                                ^String charset))))))
+                               (str data)
+                               ^String charset))))))
 
 (def generic
   (core/map->Format
-    {:name "text/*"
-     :matches #"^text/(.+)$"
-     :decoder [decoder]
-     :encoder [encoder]}))
+   {:name "text/*"
+    :matches #"^text/(.+)$"
+    :decoder [decoder]
+    :encoder [encoder]}))
