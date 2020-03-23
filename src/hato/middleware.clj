@@ -27,80 +27,6 @@
    (-> muuntaja.core/default-options
        (assoc-in [:formats "text"] format.text/generic))))
 
-
-;; Cheshire is an optional dependency, so we check for it at compile time.
-
-
-(def json-enabled?
-  (try
-    (require
-     'cheshire.core)
-    true
-    (catch Throwable _ false)))
-
-;; Transit is an optional dependency, so check at compile time.
-(def transit-enabled?
-  (try
-    (require
-     'cognitect.transit)
-    true
-    (catch Throwable _ false)))
-
-(defn transit-opts-by-type
-  "Returns the Transit options by type."
-  [type opts]
-  {:pre [transit-enabled?]}
-  (cond
-    (empty? opts)
-    opts
-    (contains? opts type)
-    (clojure.core/get opts type)
-    :else
-    {}))
-
-(def transit-read-opts
-  (partial transit-opts-by-type :decode))
-
-(def transit-write-opts
-  (partial transit-opts-by-type :encode))
-
-(defn ^:dynamic parse-transit
-  "Resolve and apply Transit's JSON/MessagePack decoding."
-  [^InputStream in type & [opts]]
-  {:pre [transit-enabled?]}
-  (when (pos? (.available in))
-    (let [reader (ns-resolve 'cognitect.transit 'reader)
-          read (ns-resolve 'cognitect.transit 'read)]
-      (read (reader in type (transit-read-opts opts))))))
-
-(defn ^:dynamic transit-encode
-  "Resolve and apply Transit's JSON/MessagePack encoding."
-  [out type & [opts]]
-  {:pre [transit-enabled?]}
-  (let [output (ByteArrayOutputStream.)
-        writer (ns-resolve 'cognitect.transit 'writer)
-        write (ns-resolve 'cognitect.transit 'write)]
-    (write (writer output type (transit-write-opts opts)) out)
-    (.toByteArray output)))
-
-(defn ^:dynamic json-encode
-  "Resolve and apply cheshire's json encoding dynamically."
-  [& args]
-  {:pre [json-enabled?]}
-  (apply (ns-resolve (symbol "cheshire.core") (symbol "encode")) args))
-
-(defn ^:dynamic json-decode
-  "Resolve and apply cheshire's json decoding dynamically."
-  [& args]
-  {:pre [json-enabled?]}
-  (apply (ns-resolve (symbol "cheshire.core") (symbol "decode")) args))
-
-(defn ^:dynamic json-decode-strict
-  "Resolve and apply cheshire's json decoding dynamically (with lazy parsing disabled)."
-  [& args]
-  {:pre [json-enabled?]}
-  (apply (ns-resolve (symbol "cheshire.core") (symbol "decode")) args))
-
 ;;;
 
 (defn when-pos [v]
@@ -428,52 +354,6 @@
      (client (method-request req)))
     ([req respond raise]
      (client (method-request req) respond raise))))
-
-(defmulti coerce-form-params
-  (fn [req] (keyword (content-type-value (:content-type req)))))
-
-(defmethod coerce-form-params :application/edn
-  [{:keys [form-params]}]
-  (pr-str form-params))
-
-(defn- coerce-transit-form-params [type {:keys [form-params transit-opts]}]
-  (when-not transit-enabled?
-    (throw (ex-info (format (str "Can't encode form params as "
-                                 "\"application/transit+%s\". "
-                                 "Transit dependency not loaded.")
-                            (name type))
-                    {:type         :transit-not-loaded
-                     :form-params  form-params
-                     :transit-opts transit-opts
-                     :transit-type type})))
-  (transit-encode form-params type transit-opts))
-
-(defmethod coerce-form-params :application/transit+json [req]
-  (coerce-transit-form-params :json req))
-
-(defmethod coerce-form-params :application/transit+msgpack [req]
-  (coerce-transit-form-params :msgpack req))
-
-(defmethod coerce-form-params :application/json
-  [{:keys [form-params json-opts]}]
-  (when-not json-enabled?
-    (throw (ex-info (str "Can't encode form params as \"application/json\". "
-                         "Cheshire dependency not loaded.")
-                    {:type        :cheshire-not-loaded
-                     :form-params form-params
-                     :json-opts   json-opts})))
-  (json-encode form-params json-opts))
-
-(defmethod coerce-form-params :default [{:keys [content-type
-                                                multi-param-style
-                                                form-params
-                                                form-param-encoding]}]
-  (if form-param-encoding
-    (generate-query-string-with-encoding form-params
-                                         form-param-encoding multi-param-style)
-    (generate-query-string form-params
-                           (content-type-value content-type)
-                           multi-param-style)))
 
 (defn- form-params-request
   [{:keys [form-params content-type request-method multi-param-style]
