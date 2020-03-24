@@ -180,7 +180,7 @@
     (= {:a 1} (-> ((wrap-response-body-coercion (constantly {:status 200 :body (.getBytes "{\"a\": 1}")})) {:as :json}) :body)))
 
   (testing "clojure coercions"
-    (is (= {:a 1} (-> ((wrap-response-body-coercion (constantly {:status 200 :body (.getBytes "{:a 1}")})) {:as :clojure}) :body))))
+    (is (= {:a 1} (-> ((wrap-muuntaja (wrap-response-body-coercion (wrap-content-type (constantly {:status 200 :headers {"Content-Type" "application/edn"} :body (.getBytes "{:a 1}") :muuntaja default-muuntaja-instance})))) {}) :body))))
 
   (testing "transit coercions"
     (= {:a [1 2]} (-> ((wrap-response-body-coercion (wrap-content-type (constantly {:status 200 :body (.getBytes "[\"^ \",\"~:a\",[1,2]]") :headers {"content-type" "application/transit+json"}}))) {:as :transit+json}) :body)))

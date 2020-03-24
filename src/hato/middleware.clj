@@ -107,10 +107,6 @@
 ;; Multimethods for coercing body type to the :as key
 (defmulti coerce-response-body (fn [muuntaja-instance req response] (:as req)))
 
-(defmethod coerce-response-body :clojure [_ _ {:keys [body] :as resp}]
-  (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")]
-    (assoc resp :body (edn/read-string (String. ^"[B" body charset)))))
-
 (defmethod coerce-response-body :byte-array [_ _ resp]
   resp)
 

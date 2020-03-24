@@ -296,7 +296,7 @@
       (.version builder (->Version version)))
 
     (doseq [[header-n header-v] headers]
-      (.header builder header-n header-v))
+      (.header builder (name header-n) header-v))
 
     (.build builder)))
 

@@ -1,18 +1,17 @@
 # hato
 
-<!--
-[![Clojars Project](https://img.shields.io/clojars/v/hato.svg)](https://clojars.org/hato)
-
-[![CircleCI](https://circleci.com/gh/gnarroway/hato.svg?style=svg)](https://circleci.com/gh/gnarroway/hato)
--->
+ [![Clojars Project](https://img.shields.io/clojars/v/gorillalabs/hato.svg)](https://clojars.org/gorillalabs/hato)
+ [![Build Status](https://travis-ci.org/gorillalabs/hato.svg)](https://travis-ci.org/gorillalabs/hato)
+ [![Dependencies Status](https://versions.deps.co/gorillalabs/hato/status.svg)](https://versions.deps.co/gorillalabs/hato)
+ [![Downloads](https://versions.deps.co/gorillalabs/hato/downloads.svg)](https://versions.deps.co/gorillalabs/hato)
+ [![cljdoc badge](https://cljdoc.xyz/badge/gorillalabs/hato)](https://cljdoc.xyz/jump/release/gorillalabs/hato)
 
 An HTTP client for Clojure.
  
-Hato is wrapping JDK 11's [HttpClient](https://openjdk.java.net/groups/net/httpclient/intro.html).
-
 It supports both HTTP/1.1 and HTTP/2, with synchronous and asynchronous execution modes as well as websockets.
 
-In general, it will feel familiar to users of http clients like [clj-http](https://github.com/dakrone/clj-http).
+In general, it will feel familiar to users of http clients like [clj-http](https://github.com/dakrone/clj-http), while Hato is wrapping JDK 11's [HttpClient](https://openjdk.java.net/groups/net/httpclient/intro.html) instead of the [org.apache.httpcomponents](http://hc.apache.org), and not brining a server along also as [http-kit](https://github.com/http-kit/http-kit). This is a fork of [hato](https://github.com/gnarroway/hato).
+
 The API is designed to be idiomatic and to make common tasks convenient, whilst
 still allowing the underlying HttpClient to be configured via native Java objects.
 
@@ -23,12 +22,12 @@ Please try it out and raise any issues you may find.
 
 ## Installation
 
-hato requires JDK 11 and above. If you are running an older version of Java, please look at [clj-http](https://github.com/dakrone/clj-http).
+hato requires JDK 11 and above. If you are running an older version of Java, please look at [clj-http](https://github.com/dakrone/clj-http) instead.
 
 For Leiningen, add this to your project.clj
 
 ```clojure
-[hato "0.5.0"]
+[gorillalabs/hato "RELEASE"]
 ```
 
 ## Quickstart
@@ -152,21 +151,15 @@ request and returns a response. Convenience wrappers are provided for the http v
 `as` Return response body in a certain format. Valid options:
 
   - Return an object type: `:string` (default), `:byte-array`, `:stream`, `:discarding`,
-  - Coerce response body with certain format: `:json`, `:json-string-keys`,
-  `:json-strict`, `:json-strict-string-keys`, `:clojure`, `:transit+json`, `:transit+msgpack`. JSON and transit
-  coercion require optional dependencies [cheshire](https://github.com/dakrone/cheshire) and
-  [com.cognitect/transit-clj](https://github.com/cognitect/transit-clj) to be installed, respectively.
+  - Coerce response body with certain format: `:edn`, `:json`, `:transit+json`, `:transit+msgpack` with the help of [gorillalabs/muuntaja](https://github.com/gorillalabs/muuntaja).
   - A [`java.net.http.HttpRequest$BodyHandler`](https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpResponse.BodyHandler.html).
   Note that decompression is enabled by default but only handled for the options above. A custom BodyHandler
   may require opting out of compression, or implementing a multimethod specific to the handler. 
-
-`coerce` Determine which status codes to coerce response bodies. `:unexceptional` (default), `:always`, `:exceptional`. 
-  This presently only has an effect for json coercions.
   
 `query-params` A map of options to turn into a query string. See usage examples for details.
 
 `form-params` A map of options that will be sent as the body, depending on the `content-type` option. For example,
-  set `:content-type :json` to coerce the form-params to a json string (requires [cheshire](https://github.com/dakrone/cheshire)).
+  set `:content-type :json` to coerce the form-params to a json string (using [gorillalabs/muuntaja](https://github.com/gorillalabs/muuntaja)).
   See usage examples for details.
 
 `multi-param-style` Decides how to represent array values when converting `query-params` into a query string. Accepts:
@@ -309,7 +302,7 @@ As a convenience, nesting can also be controlled by `:flatten-nested-keys`:
 
 ### Output coercion
 
-hato performs output coercion of the response body, returning a string by default.
+You can control whether you like hato to return an `InputStream` (using `:as :stream`), `byte-array` (using `:as :byte-array`) or `String` (`:as String`) with no further coercion.
 
 ```clojure
 ; Returns a string response
@@ -320,32 +313,51 @@ hato performs output coercion of the response body, returning a string by defaul
 
 ; Returns an InputStream
 (hc/get "http://moo.com" {:as :stream})
-
-; Coerces clojure strings
-(hc/get "http://moo.com" {:as :clojure})
-
-; Coerces transit. Requires optional dependency com.cognitect/transit-clj.
-(hc/get "http://moo.com" {:as :transit+json})
-(hc/get "http://moo.com" {:as :transit+msgpack})
-
-; Coerces JSON strings into clojure data structure
-; Requires optional dependency cheshire
-(hc/get "http://moo.com" {:as :json})
-(hc/get "http://moo.com" {:as :json-strict})
-(hc/get "http://moo.com" {:as :json-string-keys})
-(hc/get "http://moo.com" {:as :json-strict-string-keys})
-
-; Coerce responses with exceptional status codes
-(hc/get "http://moo.com" {:as :json :coerce :always})
 ```
 
-By default, hato only coerces JSON responses for unexceptional statuses. Control this with the `:coerce` option:
+If you do not state an `:as` (or give it any other value), hato performs output coercion of the response body based upon the content type header. So, what you're looking for here is the accept header and a friendly web server listening to whatever you like best.
 
 ```clojure
-:unexceptional ; default - only coerce response bodies for unexceptional status codes
-:exceptional ; only coerce for exceptional status codes
-:always ; coerce for any status code
+; Requests EDN, returns Clojure datastructure
+(hc/get "https://clojars.org/api/groups/gorillalabs" {:accept :edn})
+
+; Coerces transit.
+(hc/get "https://clojars.org/api/groups/gorillalabs" {:accept :transit+json})
+
+(hc/get "http://moo.com" {:accept :transit+msgpack})
+
+; Coerces JSON into clojure data structure
+(hc/get "http://moo.com" {:accept :json})
 ```
+
+Do add new content types or alter existing ones, you can pass a [muuntaja instance or muuntaja options](https://github.com/gorillalabs/muuntaja#configuration) using the `:muuntaja` key:
+
+```
+(require '[muuntaja.core :as m])
+
+(hc/get "https://httpbin.org/get"
+        {:accept       :json
+         :muuntaja (assoc-in m/default-options
+                             [:formats "application/json" :decoder 1 :decode-key-fn] false)})
+```
+
+If you issue multiple requests, you might want to use a muuntaja instance instead:
+
+```
+(require '[muuntaja.core :as m])
+
+(def m
+  "The `muuntaja.core/Muuntaja` instance we use to decode http responses."
+  (m/create
+    (assoc-in
+      m/default-options
+      [:formats "application/json" :decoder 1 :decode-key-fn] false)))
+
+(hc/get "https://httpbin.org/get"
+        {:accept       :json
+         :muuntaja m})
+```
+
 
 ### Certificate authentication
 
@@ -490,7 +502,7 @@ can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold), to give
 `opts` Additional options may be a map of any of the following keys:
 
   - `:http-client` An `HttpClient` (e.g. created by `hato.client/build-http-client`). If not provided, a default client will be used.
-  - `:headers` Adds the given name-value pair to the list of additional HTTP headers sent during the opening handshake.
+  - `:headers` Adds the given name-value pair to the list of additional HTTP headers sent during the opening handshake (feel free to use keywords).
   - `:connect-timeout` Sets a timeout for establishing a WebSocket connection, in milliseconds.
   - `:subprotocols` Sets a request for the given subprotocols.
   - `:listener` A WebSocket listener. If a `WebSocket$Listener` is provided, it will be used directly.
