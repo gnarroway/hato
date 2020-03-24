@@ -4,7 +4,8 @@
   (:require
    [clojure.string :as str]
    [hato.middleware :as middleware]
-   [clojure.java.io :as io])
+   [clojure.java.io :as io]
+   [muuntaja.core :as m])
   (:import
    (java.net.http
     HttpClient$Redirect
@@ -154,7 +155,7 @@
 
   `request` is the map of request options output by `make-request`
   `response` is the raw HttpResponse"
-  [{:keys [request ^HttpResponse response http-client]}]
+  [{:keys [request ^HttpResponse response http-client muuntaja]}]
   {:uri         (.toString (.uri response))
    :status      (.statusCode response)
    :body        (.body response)
@@ -163,6 +164,7 @@
                      (into {}))
    :version     (-> response (.version) (.name) Version->kw)
    :http-client http-client
+   :muuntaja    muuntaja
    :request     (assoc request :http-request (.request response))})
 
 (def cookie-policies
@@ -299,7 +301,7 @@
     (.build builder)))
 
 (defn request*
-  [{:keys [http-client async? as]
+  [{:keys [http-client async? as muuntaja]
     :as   req} & [respond raise]]
   (let [^HttpClient http-client (if (instance? HttpClient http-client) http-client (build-http-client http-client))
         http-request (ring-request->HttpRequest req)
@@ -309,6 +311,7 @@
         (response-map
          {:request     req
           :http-client http-client
+          :muuntaja    (m/create muuntaja)
           :response    resp}))
 
       (-> (.sendAsync http-client http-request bh)
@@ -319,6 +322,7 @@
                 (response-map
                  {:request     req
                   :http-client http-client
+                  :muuntaja    (m/create muuntaja)
                   :response    resp})))))
           (.exceptionally
            (reify Function

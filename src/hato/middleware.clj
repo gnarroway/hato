@@ -22,11 +22,6 @@
    (java.util.zip
     GZIPInputStream InflaterInputStream ZipException Inflater)))
 
-(def muuntaja-instance
-  (m/create
-   (-> muuntaja.core/default-options
-       (assoc-in [:formats "text"] format.text/generic))))
-
 ;;;
 
 (defn when-pos [v]
@@ -110,24 +105,24 @@
      (client req #(response (exceptions-response req %)) raise))))
 
 ;; Multimethods for coercing body type to the :as key
-(defmulti coerce-response-body (fn [req _] (:as req)))
+(defmulti coerce-response-body (fn [muuntaja-instance req response] (:as req)))
 
-(defmethod coerce-response-body :clojure [_ {:keys [body] :as resp}]
+(defmethod coerce-response-body :clojure [_ _ {:keys [body] :as resp}]
   (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")]
     (assoc resp :body (edn/read-string (String. ^"[B" body charset)))))
 
-(defmethod coerce-response-body :byte-array [_ resp]
+(defmethod coerce-response-body :byte-array [_ _ resp]
   resp)
 
-(defmethod coerce-response-body :stream [_ resp]
+(defmethod coerce-response-body :stream [_ _ resp]
   resp)
 
-(defmethod coerce-response-body :string [_ {:keys [body] :as resp}]
+(defmethod coerce-response-body :string [_ _ {:keys [body] :as resp}]
   (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")]
     (assoc resp :body (String. ^"[B" body charset))))
 
 (defmethod coerce-response-body :default
-  [_ resp]
+  [muuntaja-instance _ resp]
   (try
     (let [decoded (m/decode-response-body muuntaja-instance resp)]
       (assoc resp :body decoded))
@@ -136,27 +131,23 @@
               :hato/errors conj e))))
 
 (defn- response-body-coercion
-  [req {:keys [body] :as resp}]
+  [muuntaja-instance req {:keys [body] :as resp}]
   (if body
-    (coerce-response-body req resp)
+    (coerce-response-body muuntaja-instance req resp)
     resp))
 
 (defn wrap-response-body-coercion
   "Middleware converting a response body from a byte-array to a different object.
   Defaults to a String if no :as key is specified, the `coerce-response-body`
   multimethod may be extended to add additional coercions."
-  ([client]
-   (wrap-response-body-coercion
-    muuntaja.core/instance
-    client))
-  ([muuntaja-or-options client]
-   (fn
-     ([req]
-      (response-body-coercion req (client req)))
-     ([req respond raise]
-      (client req
-              #(respond (response-body-coercion req %))
-              raise)))))
+  [client]
+  (fn
+    ([{:keys [muuntaja] :as req}]
+     (response-body-coercion (m/create muuntaja) req (client req)))
+    ([{:keys [muuntaja] :as req} respond raise]
+     (client req
+             #(respond (response-body-coercion (m/create muuntaja) req %))
+             raise))))
 
 (defn content-type-value [type]
   (if (keyword? type)
@@ -356,9 +347,9 @@
      (client (method-request req) respond raise))))
 
 (defn- form-params-request
-  [{:keys [form-params content-type request-method multi-param-style]
-    :or   {content-type :x-www-form-urlencoded}
-    :as   req}]
+  [muuntaja-instance {:keys [form-params content-type request-method multi-param-style]
+                      :or   {content-type :x-www-form-urlencoded}
+                      :as   req}]
   (if (and form-params (#{:post :put :patch :delete} request-method))
     (if (= :x-www-form-urlencoded content-type)
       (as-> req $
@@ -380,10 +371,10 @@
   "Middleware wrapping the submission or form parameters."
   [client]
   (fn
-    ([req]
-     (client (form-params-request req)))
-    ([req respond raise]
-     (client (form-params-request req) respond raise))))
+    ([{:keys [muuntaja] :as req}]
+     (client (form-params-request (m/create muuntaja) req)))
+    ([{:keys [muuntaja] :as req} respond raise]
+     (client (form-params-request (m/create muuntaja) req) respond raise))))
 
 (defn- url-request
   [req]
@@ -568,6 +559,24 @@
     ([req respond raise]
      (client (multipart-request req) respond raise))))
 
+(def default-muuntaja-instance
+  (-> m/default-options
+      (assoc-in [:formats "text"] format.text/generic)))
+
+(defn muuntaja-instance [{:keys [muuntaja]
+                          :or   {muuntaja default-muuntaja-instance}
+                          :as   req}]
+  (assoc req :muuntaja (m/create muuntaja)))
+
+(defn wrap-muuntaja
+  "Middleware wrapping muuntaja options."
+  [client]
+  (fn
+    ([req]
+     (client (muuntaja-instance req)))
+    ([req respond raise]
+     (client (muuntaja-instance req) respond raise))))
+
 (def default-middleware
   "The default list of middleware hato uses for wrapping requests."
   [wrap-request-timing
@@ -588,15 +597,17 @@
    wrap-content-type
    wrap-form-params
    wrap-nested-params
-   wrap-method])
+   wrap-method
+   wrap-muuntaja])
 
 (defn wrap-request
   "Returns a batteries-included HTTP request function corresponding to the given
   core client. See default-middleware for the middleware wrappers that are used
-  by default"
+  by default, which you can enrich with your muuntaja options or instance according
+  to your needs for different content types."
   ([request]
    (wrap-request request default-middleware))
   ([request middleware]
-   (reduce (fn [req m] (m req))
+   (reduce (fn [req middleware-wrapper] (middleware-wrapper req))
            request
            middleware)))

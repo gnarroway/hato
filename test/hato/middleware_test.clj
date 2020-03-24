@@ -172,7 +172,7 @@
 
 (deftest test-wrap-output-coercion
   (testing "coerces is not depending on status"
-    (are [expected status] (= expected (-> ((wrap-response-body-coercion (wrap-content-type (constantly {:status status :body (.getBytes "{\"a\": 1}")}))) {:as :json}) :body))
+    (are [expected status] (= expected (-> ((wrap-muuntaja (wrap-response-body-coercion (wrap-content-type (constantly {:status status :body (.getBytes "{\"a\": 1}") :muuntaja default-muuntaja-instance})))) {:as :json}) :body))
       {:a 1} 200
       {:a 1} 300))
 
@@ -258,19 +258,19 @@
       (is (= "application/x-www-form-urlencoded" ((:headers r) "content-type")))
       (is (= "moo=cow+boy%21" (as-string (:body r))))))
   (testing "coercing to json"
-    (let [r ((wrap-content-type (wrap-form-params identity)) {:form-params {:moo "cow boy!"} :request-method :post :content-type :json})]
+    (let [r ((wrap-muuntaja (wrap-content-type (wrap-form-params identity))) {:form-params {:moo "cow boy!"} :request-method :post :content-type :json})]
       (is (= :post (:request-method r)))
       (is (= "application/json" ((:headers r) "content-type")))
       (is (= "{\"moo\":\"cow boy!\"}" (as-string (:body r))))))
 
   (testing "coercing to edn"
-    (let [r ((wrap-content-type (wrap-form-params identity)) {:form-params {:moo "cow boy!"} :request-method :post :content-type :edn})]
+    (let [r ((wrap-muuntaja (wrap-content-type (wrap-form-params identity))) {:form-params {:moo "cow boy!"} :request-method :post :content-type :edn})]
       (is (= :post (:request-method r)))
       (is (= "application/edn" ((:headers r) "content-type")))
       (is (= "{:moo \"cow boy!\"}" (as-string (:body r))))))
 
   (testing "coercing to transit+json"
-    (let [r ((wrap-content-type (wrap-form-params identity)) {:form-params {:moo "cow boy!"} :request-method :post :content-type :transit+json})]
+    (let [r ((wrap-muuntaja (wrap-content-type (wrap-form-params identity))) {:form-params {:moo "cow boy!"} :request-method :post :content-type :transit+json})]
       (is (= "[\"^ \",\"~:moo\",\"cow boy!\"]" (as-string (:body r)))))))
 
 (deftest test-wrap-method
