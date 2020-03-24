@@ -6,6 +6,17 @@
             GZIPOutputStream)
            (java.io ByteArrayOutputStream ByteArrayInputStream InputStream)))
 
+(defmulti as-string type)
+
+(defmethod as-string InputStream [x]
+  (slurp x))
+
+(defmethod as-string String [x]
+  x)
+
+(defmethod as-string :default [x]
+  x)
+
 (deftest test-wrap-request-timing
   (let [r ((wrap-request-timing (fn [x] (Thread/sleep 1) x)) {})]
     (is (< 0 (:request-time r) 10))))
@@ -49,9 +60,9 @@
         (is (= flattened (:query-params ((wrap-nested-params identity) {:query-params params :flatten-nested-keys [:query-params]})))))
 
       (testing "throws if multiple methods specified"
-        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:query-params params
+        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:query-params               params
                                                                               :ignore-nested-query-string true
-                                                                              :flatten-nested-keys [:query-params]})))))
+                                                                              :flatten-nested-keys        [:query-params]})))))
 
     (testing "form params"
       (testing "does not nest by default"
@@ -64,9 +75,9 @@
         (is (= flattened (:form-params ((wrap-nested-params identity) {:form-params params :flatten-nested-keys [:form-params]})))))
 
       (testing "throws if multiple methods specified"
-        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:form-params params
+        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:form-params                params
                                                                               :flatten-nested-form-params true
-                                                                              :flatten-nested-keys [:form-params]})))))))
+                                                                              :flatten-nested-keys        [:form-params]})))))))
 
 (deftest test-wrap-basic-auth
   (testing "encoding"
@@ -152,48 +163,36 @@
     (let [r ((wrap-decompression identity) {:decompress-body false})]
       (is (not (contains? r :headers))))))
 
+#_;
+  ((wrap-response-body-coercion
+    (wrap-content-type
+     (constantly {:status 200
+                  :body   (.getBytes "{\"a\": 1}")})))
+   {:as :json :coerce :unexceptional})
+
 (deftest test-wrap-output-coercion
-  (testing "coerces depending on status and :coerce option"
-    (are [expected status coerce] (= expected (-> ((wrap-output-coercion (constantly {:status status :body (.getBytes "{\"a\": 1}")})) {:as :json :coerce coerce}) :body))
-      {:a 1} 200 nil
-      {:a 1} 300 nil
-      "{\"a\": 1}" 400 nil
-      "{\"a\": 1}" 500 nil
-      {:a 1} 200 :unexceptional
-      {:a 1} 300 :unexceptional
-      "{\"a\": 1}" 400 :unexceptional
-      "{\"a\": 1}" 500 :unexceptional
-      {:a 1} 200 :always
-      {:a 1} 300 :always
-      {:a 1} 400 :always
-      {:a 1} 500 :always
-      "{\"a\": 1}" 200 :exceptional
-      "{\"a\": 1}" 300 :exceptional
-      {:a 1} 400 :exceptional
-      {:a 1} 500 :exceptional))
+  (testing "coerces is not depending on status"
+    (are [expected status] (= expected (-> ((wrap-muuntaja (wrap-response-body-coercion (wrap-content-type (constantly {:status status :body (.getBytes "{\"a\": 1}") :muuntaja default-muuntaja-instance})))) {:as :json}) :body))
+      {:a 1} 200
+      {:a 1} 300))
 
   (testing "json coercions"
-    (are [expected as] (= expected (-> ((wrap-output-coercion (constantly {:status 200 :body (.getBytes "{\"a\": 1}")})) {:as as}) :body))
-      {:a 1} :json
-      {:a 1} :json-strict
-      {"a" 1} :json-string-keys
-      {"a" 1} :json-strict-string-keys))
+    (= {:a 1} (-> ((wrap-response-body-coercion (constantly {:status 200 :body (.getBytes "{\"a\": 1}")})) {:as :json}) :body)))
 
   (testing "clojure coercions"
-    (is (= {:a 1} (-> ((wrap-output-coercion (constantly {:status 200 :body (.getBytes "{:a 1}")})) {:as :clojure}) :body))))
+    (is (= {:a 1} (-> ((wrap-muuntaja (wrap-response-body-coercion (wrap-content-type (constantly {:status 200 :headers {"Content-Type" "application/edn"} :body (.getBytes "{:a 1}") :muuntaja default-muuntaja-instance})))) {}) :body))))
 
   (testing "transit coercions"
-    (are [expected as] (= expected (-> ((wrap-output-coercion (constantly {:status 200 :body (.getBytes "[\"^ \",\"~:a\",[1,2]]")})) {:as as}) :body))
-      {:a [1 2]} :transit+json))
+    (= {:a [1 2]} (-> ((wrap-response-body-coercion (wrap-content-type (constantly {:status 200 :body (.getBytes "[\"^ \",\"~:a\",[1,2]]") :headers {"content-type" "application/transit+json"}}))) {:as :transit+json}) :body)))
 
   (testing "string coercions"
-    (is (= "{:a 1}" (-> ((wrap-output-coercion (constantly {:status 200 :body (.getBytes "{:a 1}")})) {:as :string}) :body))))
+    (is (= "{:a 1}" (-> ((wrap-response-body-coercion (constantly {:status 200 :body (.getBytes "{:a 1}")})) {:as :string}) :body))))
 
   (testing "byte-array coercions"
     (let [bs (.getBytes "{:a 1}")
           iss (ByteArrayInputStream. bs)]
-      (is (= bs (-> ((wrap-output-coercion (constantly {:status 200 :body bs})) {:as :byte-array}) :body)))
-      (is (= iss (-> ((wrap-output-coercion (constantly {:status 200 :body iss})) {:as :stream}) :body))))))
+      (is (= bs (-> ((wrap-response-body-coercion (constantly {:status 200 :body bs})) {:as :byte-array}) :body)))
+      (is (= iss (-> ((wrap-response-body-coercion (constantly {:status 200 :body iss})) {:as :stream}) :body))))))
 
 (deftest test-wrap-exceptions
   (testing "for unexceptional status codes"
@@ -252,26 +251,27 @@
       (is (not (contains? r :body)))))
 
   (testing "with default content-type"
-    (let [r ((wrap-form-params identity) {:form-params {:moo "cow boy!"} :request-method :post})]
-      (is (= {:body           "moo=cow+boy%21"
-              :content-type   "application/x-www-form-urlencoded"
-              :request-method :post} r))))
-
+    (let [r ((wrap-content-type (wrap-form-params identity))
+             {:form-params    {:moo "cow boy!"}
+              :request-method :post})]
+      (is (= :post (:request-method r)))
+      (is (= "application/x-www-form-urlencoded" ((:headers r) "content-type")))
+      (is (= "moo=cow+boy%21" (as-string (:body r))))))
   (testing "coercing to json"
-    (let [r ((wrap-form-params identity) {:form-params {:moo "cow boy!"} :request-method :post :content-type :json})]
-      (is (= {:body           "{\"moo\":\"cow boy!\"}"
-              :content-type   "application/json"
-              :request-method :post} r))))
+    (let [r ((wrap-muuntaja (wrap-content-type (wrap-form-params identity))) {:form-params {:moo "cow boy!"} :request-method :post :content-type :json})]
+      (is (= :post (:request-method r)))
+      (is (= "application/json" ((:headers r) "content-type")))
+      (is (= "{\"moo\":\"cow boy!\"}" (as-string (:body r))))))
 
   (testing "coercing to edn"
-    (let [r ((wrap-form-params identity) {:form-params {:moo "cow boy!"} :request-method :post :content-type :edn})]
-      (is (= {:body           "{:moo \"cow boy!\"}"
-              :content-type   "application/edn"
-              :request-method :post} r))))
+    (let [r ((wrap-muuntaja (wrap-content-type (wrap-form-params identity))) {:form-params {:moo "cow boy!"} :request-method :post :content-type :edn})]
+      (is (= :post (:request-method r)))
+      (is (= "application/edn" ((:headers r) "content-type")))
+      (is (= "{:moo \"cow boy!\"}" (as-string (:body r))))))
 
   (testing "coercing to transit+json"
-    (let [r ((wrap-form-params identity) {:form-params {:moo "cow boy!"} :request-method :post :content-type :transit+json})]
-      (is (= "[\"^ \",\"~:moo\",\"cow boy!\"]" (String. (:body r)))))))
+    (let [r ((wrap-muuntaja (wrap-content-type (wrap-form-params identity))) {:form-params {:moo "cow boy!"} :request-method :post :content-type :transit+json})]
+      (is (= "[\"^ \",\"~:moo\",\"cow boy!\"]" (as-string (:body r)))))))
 
 (deftest test-wrap-method
   (testing "when no method option"
