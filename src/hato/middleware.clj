@@ -11,14 +11,16 @@
     Base64)
    (java.io
     InputStream
-    ByteArrayInputStream
-    ByteArrayOutputStream BufferedInputStream)
+    ByteArrayOutputStream
+    BufferedInputStream)
    (java.net
     URLDecoder
     URLEncoder
     URL)
    (java.util.zip
     GZIPInputStream InflaterInputStream ZipException Inflater)))
+
+(set! *warn-on-reflection* true)
 
 ;; Cheshire is an optional dependency, so we check for it at compile time.
 
@@ -81,17 +83,17 @@
   {:pre [json-enabled?]}
   (apply (ns-resolve (symbol "cheshire.core") (symbol "encode")) args))
 
-(defn ^:dynamic json-decode
+(defn ^:dynamic json-decode-stream
   "Resolve and apply cheshire's json decoding dynamically."
   [& args]
   {:pre [json-enabled?]}
-  (apply (ns-resolve (symbol "cheshire.core") (symbol "decode")) args))
+  (apply (ns-resolve (symbol "cheshire.core") (symbol "parse-stream")) args))
 
-(defn ^:dynamic json-decode-strict
+(defn ^:dynamic json-decode-stream-strict
   "Resolve and apply cheshire's json decoding dynamically (with lazy parsing disabled)."
   [& args]
   {:pre [json-enabled?]}
-  (apply (ns-resolve (symbol "cheshire.core") (symbol "decode-strict")) args))
+  (apply (ns-resolve (symbol "cheshire.core") (symbol "parse-stream-strict")) args))
 
 ;;;
 
@@ -181,23 +183,25 @@
 (defn coerce-json-body
   [{:keys [coerce]} {:keys [body status] :as resp} keyword? strict?]
   (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")
-        body-string (slurp body :encoding charset)
-        decode-func (if strict? json-decode-strict json-decode)]
+        decode-func (if strict? json-decode-stream-strict json-decode-stream)]
     (if json-enabled?
       (cond
-        (= coerce :always)
-        (assoc resp :body (decode-func body-string keyword?))
-
         (and (unexceptional-status? status)
              (or (nil? coerce) (= coerce :unexceptional)))
-        (assoc resp :body (decode-func body-string keyword?))
+        (with-open [r (clojure.java.io/reader body :encoding charset)]
+          (assoc resp :body (decode-func r keyword?)))
+
+        (= coerce :always)
+        (with-open [r (clojure.java.io/reader body :encoding charset)]
+          (assoc resp :body (decode-func r keyword?)))
 
         (and (not (unexceptional-status? status)) (= coerce :exceptional))
-        (assoc resp :body (decode-func body-string keyword?))
+        (with-open [r (clojure.java.io/reader body :encoding charset)]
+          (assoc resp :body (decode-func r keyword?)))
 
-        :else (assoc resp :body body-string))
+        :else (assoc resp :body (slurp body :encoding charset)))
 
-      (assoc resp :body body-string))))
+      (assoc resp :body (slurp body :encoding charset)))))
 
 (defn coerce-clojure-body
   [_ {:keys [body] :as resp}]
@@ -207,7 +211,7 @@
 (defn coerce-transit-body
   [{:keys [transit-opts]} {:keys [body] :as resp} type]
   (if transit-enabled?
-    (with-open [bs body]
+    (with-open [^InputStream bs body]
       (assoc resp :body (parse-transit bs type transit-opts)))
 
     resp))
@@ -234,7 +238,7 @@
   (coerce-transit-body req resp :msgpack))
 
 (defmethod coerce-response-body :byte-array [_ resp]
-  (let [ba (with-open [xin (:body resp)
+  (let [ba (with-open [^InputStream xin (:body resp)
                        xout (ByteArrayOutputStream.)]
              (io/copy xin xout)
              (.toByteArray xout))]
@@ -247,12 +251,23 @@
   [_ {:keys [^InputStream body] :as resp}]
   (assoc resp :body (slurp body :encoding "UTF-8")))
 
-
+(defn- parse-content-type
+  "Parse `s` as an RFC 2616 media type."
+  [s]
+  (when-let [m (re-matches #"\s*(([^/]+)/([^ ;]+))\s*(\s*;.*)?" (str s))]
+    {:content-type (keyword (nth m 1))
+     :content-type-params
+     (->> (clojure.string/split (str (nth m 4)) #"\s*;\s*")
+          (remove clojure.string/blank?)
+          (map #(clojure.string/split % #"="))
+          (map (fn [[k v]] [(keyword (clojure.string/lower-case k)) (clojure.string/trim v)]))
+          (into {}))}))
 
 (defn- output-coercion-response
   [req {:keys [body] :as resp}]
   (if body
-    (coerce-response-body req resp)
+    (coerce-response-body req (merge resp
+                                     (parse-content-type (-> resp :headers (get "content-type")))))
     resp))
 
 (defn wrap-output-coercion
