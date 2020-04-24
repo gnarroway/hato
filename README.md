@@ -149,14 +149,11 @@ request and returns a response. Convenience wrappers are provided for the http v
   
 `as` Return response body in a certain format. Valid options:
 
-  - Return an object type: `:string` (default), `:byte-array`, `:stream`, `:discarding`,
+  - Return an object type: `:string` (default), `:byte-array`, `:stream`,
   - Coerce response body with certain format: `:json`, `:json-string-keys`,
   `:json-strict`, `:json-strict-string-keys`, `:clojure`, `:transit+json`, `:transit+msgpack`. JSON and transit
   coercion require optional dependencies [cheshire](https://github.com/dakrone/cheshire) and
   [com.cognitect/transit-clj](https://github.com/cognitect/transit-clj) to be installed, respectively.
-  - A [`java.net.http.HttpRequest$BodyHandler`](https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpResponse.BodyHandler.html).
-  Note that decompression is enabled by default but only handled for the options above. A custom BodyHandler
-  may require opting out of compression, or implementing a multimethod specific to the handler. 
 
 `coerce` Determine which status codes to coerce response bodies. `:unexceptional` (default), `:always`, `:exceptional`. 
   This presently only has an effect for json coercions.
@@ -307,7 +304,7 @@ As a convenience, nesting can also be controlled by `:flatten-nested-keys`:
 
 ### Output coercion
 
-hato performs output coercion of the response body, returning a string by default.
+You can control whether you like hato to return an `InputStream` (using `:as :stream`), `byte-array` (using `:as :byte-array`) or `String` (`:as String`) with no further coercion.
 
 ```clojure
 ; Returns a string response

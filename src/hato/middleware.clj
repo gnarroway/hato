@@ -91,7 +91,7 @@
   "Resolve and apply cheshire's json decoding dynamically (with lazy parsing disabled)."
   [& args]
   {:pre [json-enabled?]}
-  (apply (ns-resolve (symbol "cheshire.core") (symbol "decode")) args))
+  (apply (ns-resolve (symbol "cheshire.core") (symbol "decode-strict")) args))
 
 ;;;
 
@@ -180,35 +180,34 @@
 
 (defn coerce-json-body
   [{:keys [coerce]} {:keys [body status] :as resp} keyword? strict?]
-  (let [^String charset (or (-> resp :content-type-params :charset)
-                            "UTF-8")
-        ; TODO consider using stream
+  (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")
+        body-string (slurp body :encoding charset)
         decode-func (if strict? json-decode-strict json-decode)]
     (if json-enabled?
       (cond
         (= coerce :always)
-        (assoc resp :body (decode-func (String. ^"[B" body charset) keyword?))
+        (assoc resp :body (decode-func body-string keyword?))
 
         (and (unexceptional-status? status)
              (or (nil? coerce) (= coerce :unexceptional)))
-        (assoc resp :body (decode-func (String. ^"[B" body charset) keyword?))
+        (assoc resp :body (decode-func body-string keyword?))
 
         (and (not (unexceptional-status? status)) (= coerce :exceptional))
-        (assoc resp :body (decode-func (String. ^"[B" body charset) keyword?))
+        (assoc resp :body (decode-func body-string keyword?))
 
-        :else (assoc resp :body (String. ^"[B" body charset)))
+        :else (assoc resp :body body-string))
 
-      (assoc resp :body (String. ^"[B" body charset)))))
+      (assoc resp :body body-string))))
 
 (defn coerce-clojure-body
   [_ {:keys [body] :as resp}]
   (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")]
-    (assoc resp :body (edn/read-string (String. ^"[B" body charset)))))
+    (assoc resp :body (edn/read-string (slurp body :encoding charset)))))
 
 (defn coerce-transit-body
   [{:keys [transit-opts]} {:keys [body] :as resp} type]
   (if transit-enabled?
-    (with-open [bs (ByteArrayInputStream. body)]
+    (with-open [bs body]
       (assoc resp :body (parse-transit bs type transit-opts)))
 
     resp))
@@ -235,14 +234,20 @@
   (coerce-transit-body req resp :msgpack))
 
 (defmethod coerce-response-body :byte-array [_ resp]
-  resp)
+  (let [ba (with-open [xin (:body resp)
+                       xout (ByteArrayOutputStream.)]
+             (io/copy xin xout)
+             (.toByteArray xout))]
+    (assoc resp :body ba)))
 
 (defmethod coerce-response-body :stream [_ resp]
   resp)
 
 (defmethod coerce-response-body :default
-  [_ {:keys [^"[B" body] :as resp}]
-  (assoc resp :body (String. body "UTF-8")))
+  [_ {:keys [^InputStream body] :as resp}]
+  (assoc resp :body (slurp body :encoding "UTF-8")))
+
+
 
 (defn- output-coercion-response
   [req {:keys [body] :as resp}]
@@ -564,15 +569,8 @@
   "Returns a gunzip'd version of the given byte array or input stream."
   [b]
   (when b
-    (cond
-      (instance? InputStream b)
-      (GZIPInputStream. b)
-
-      :else
-      (with-open [xin (GZIPInputStream. (io/input-stream b))
-                  xout (ByteArrayOutputStream.)]
-        (io/copy xin xout)
-        (.toByteArray xout)))))
+    (when (instance? InputStream b)
+      (GZIPInputStream. b))))
 
 (defn inflate
   "Returns a zlib inflate'd version of the given byte array or InputStream."
@@ -581,9 +579,7 @@
     ;; This weirdness is because HTTP servers lie about what kind of deflation
     ;; they're using, so we try one way, then if that doesn't work, reset and
     ;; try the other way
-    (let [stream (BufferedInputStream. (if (instance? InputStream b)
-                                         b
-                                         (ByteArrayInputStream. b)))
+    (let [stream (BufferedInputStream. b)
           _ (.mark stream 512)
           iis (InflaterInputStream. stream)
           readable? (try (.read iis) true
@@ -593,12 +589,7 @@
                  (InflaterInputStream. stream)
                  (InflaterInputStream. stream (Inflater. true)))]
 
-      (if (instance? InputStream b)
-        iis'
-        (with-open [xin iis'
-                    xout (ByteArrayOutputStream.)]
-          (io/copy xin xout)
-          (.toByteArray xout))))))
+      iis')))
 
 ;; Multimethods for Content-Encoding dispatch automatically
 ;; decompressing response bodies
