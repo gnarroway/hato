@@ -34,23 +34,11 @@
 (defn- ->BodyHandler
   "Returns a BodyHandler.
 
-  `as` can be a BodyHandler or some keyword that maps to one.
-
-  Defaults to a byte array if nothing matches.
-
-  :string is handled by middleware (coercing from byte array) rather than native
-  BodyHandler as it conflicts with compressed responses (e.g. gzip).
+  Always returns InputStream that are coerced in middleware.
 
   https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpResponse.BodyHandler.html"
-  [as]
-  (if (instance? HttpResponse$BodyHandler as)
-    as
-    (case as
-      :byte-array (HttpResponse$BodyHandlers/ofByteArray)
-      :stream (HttpResponse$BodyHandlers/ofInputStream)
-      :discarding (HttpResponse$BodyHandlers/discarding)
-
-      (HttpResponse$BodyHandlers/ofByteArray))))
+  [_]
+  (HttpResponse$BodyHandlers/ofInputStream))
 
 (defn- ->BodyPublisher
   "Returns a BodyPublisher.

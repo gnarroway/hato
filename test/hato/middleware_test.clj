@@ -4,7 +4,7 @@
             [hato.middleware :refer :all])
   (:import (java.util.zip
             GZIPOutputStream)
-           (java.io ByteArrayOutputStream ByteArrayInputStream InputStream)))
+           (java.io ByteArrayOutputStream InputStream)))
 
 (deftest test-wrap-request-timing
   (let [r ((wrap-request-timing (fn [x] (Thread/sleep 1) x)) {})]
@@ -136,15 +136,18 @@
       (.finish gzip)
       (.toByteArray out))))
 
+(defn- string->stream
+  [s]
+  (clojure.java.io/input-stream (.getBytes s)))
+
 (deftest test-wrap-decompression
   (testing "with no decompress-body option"
     (let [r ((wrap-decompression identity) {})]
       (is (= "gzip, deflate" (get-in r [:headers "accept-encoding"])) "Adds request headers"))
 
-    (are [response] (= "s" (-> ((wrap-decompression (constantly response)) {}) :body (String.)))
-      {:body (.getBytes "s")}
-      {:body (gzip (.getBytes "s")) :headers {"content-encoding" "gzip"}}
-                    ; TODO stream
+    (are [response] (= "s" (-> ((wrap-decompression (constantly response)) {}) :body slurp))
+      {:body (string->stream "s")}
+      {:body (clojure.java.io/input-stream (gzip (.getBytes "s"))) :headers {"content-encoding" "gzip"}}
                     ; TODO deflate
       ))
 
@@ -154,7 +157,7 @@
 
 (deftest test-wrap-output-coercion
   (testing "coerces depending on status and :coerce option"
-    (are [expected status coerce] (= expected (-> ((wrap-output-coercion (constantly {:status status :body (.getBytes "{\"a\": 1}")})) {:as :json :coerce coerce}) :body))
+    (are [expected status coerce] (= expected (-> ((wrap-output-coercion (constantly {:status status :body (string->stream "{\"a\": 1}")})) {:as :json :coerce coerce}) :body))
       {:a 1} 200 nil
       {:a 1} 300 nil
       "{\"a\": 1}" 400 nil
@@ -173,27 +176,26 @@
       {:a 1} 500 :exceptional))
 
   (testing "json coercions"
-    (are [expected as] (= expected (-> ((wrap-output-coercion (constantly {:status 200 :body (.getBytes "{\"a\": 1}")})) {:as as}) :body))
+    (are [expected as] (= expected (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "{\"a\": 1}")})) {:as as}) :body))
       {:a 1} :json
       {:a 1} :json-strict
       {"a" 1} :json-string-keys
       {"a" 1} :json-strict-string-keys))
 
   (testing "clojure coercions"
-    (is (= {:a 1} (-> ((wrap-output-coercion (constantly {:status 200 :body (.getBytes "{:a 1}")})) {:as :clojure}) :body))))
+    (is (= {:a 1} (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "{:a 1}")})) {:as :clojure}) :body))))
 
   (testing "transit coercions"
-    (are [expected as] (= expected (-> ((wrap-output-coercion (constantly {:status 200 :body (.getBytes "[\"^ \",\"~:a\",[1,2]]")})) {:as as}) :body))
+    (are [expected as] (= expected (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "[\"^ \",\"~:a\",[1,2]]")})) {:as as}) :body))
       {:a [1 2]} :transit+json))
 
   (testing "string coercions"
-    (is (= "{:a 1}" (-> ((wrap-output-coercion (constantly {:status 200 :body (.getBytes "{:a 1}")})) {:as :string}) :body))))
+    (is (= "{:a 1}" (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "{:a 1}")})) {:as :string}) :body))))
 
   (testing "byte-array coercions"
-    (let [bs (.getBytes "{:a 1}")
-          iss (ByteArrayInputStream. bs)]
-      (is (= bs (-> ((wrap-output-coercion (constantly {:status 200 :body bs})) {:as :byte-array}) :body)))
-      (is (= iss (-> ((wrap-output-coercion (constantly {:status 200 :body iss})) {:as :stream}) :body))))))
+    (let [bs (string->stream "{:a 1}")]
+      (is (= (Class/forName "[B") (.getClass (-> ((wrap-output-coercion (constantly {:status 200 :body bs})) {:as :byte-array}) :body))))
+      (is (= bs (-> ((wrap-output-coercion (constantly {:status 200 :body bs})) {:as :stream}) :body))))))
 
 (deftest test-wrap-exceptions
   (testing "for unexceptional status codes"

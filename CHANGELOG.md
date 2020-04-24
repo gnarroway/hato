@@ -1,6 +1,11 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [Unreleased]
+### Changed
+- Simplify code by always using InputStream BodyHandler in client.clj, so coercion handling is pure middleware.
+This is to open the door to pluggable body handlers middleware.
+
 ## [0.5.0]
 ### Added
 - Websocket support (thanks @vincentjames501)
@@ -13,7 +18,7 @@ All notable changes to this project will be documented in this file. This change
 ### Added
 - Multipart support ([#1](https://github.com/gnarroway/hato/issues/1))
 
-### Updated
+### Changed
 - Readme notes it is now a stable API and ready for use.
 
 ## [0.3.1] - 2019-07-01
@@ -32,7 +37,7 @@ users to make their own request function from some stack of middleware.
 ### Added
 - Initial release
 
-[Unreleased]: https://github.com/gnarroway/hato/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/gnarroway/hato/compare/v0.5.0...HEAD
 [0.5.0]: https://github.com/gnarroway/hato/compare/v0.4.1...0.5.0
 [0.4.1]: https://github.com/gnarroway/hato/compare/v0.4.0...0.4.1
 [0.4.0]: https://github.com/gnarroway/hato/compare/v0.3.1...0.4.0

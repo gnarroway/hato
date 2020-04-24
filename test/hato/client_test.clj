@@ -112,13 +112,6 @@
                       :eggplant     "Eggplants"
                       :title        "My Awesome Picture"}} (-> r :body (select-keys [:files :form])))))))
 
-(comment
-  (-> (get "https://httpbin.org/stream/3" {:accept :json :as :json-seq})
-      :body)
-
-  (-> @(get "https://jsonplaceholder.typicode.com/posts/1/comments" {:accept :json :as :json :async? true})
-      :body))
-
 (deftest ^:integration test-basic-response-async
   (testing "basic get request returns response map"
     (let [r @(get "https://httpbin.org/get" {:async? true})]
