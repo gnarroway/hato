@@ -151,8 +151,8 @@ request and returns a response. Convenience wrappers are provided for the http v
 
   - Return an object type: `:string` (default), `:byte-array`, `:stream`,
   - Coerce response body with certain format: `:json`, `:json-string-keys`,
-  `:json-strict`, `:json-strict-string-keys`, `:clojure`, `:transit+json`, `:transit+msgpack`. JSON and transit
-  coercion require optional dependencies [cheshire](https://github.com/dakrone/cheshire) and
+  `:clojure`, `:transit+json`, `:transit+msgpack`. JSON and transit
+  coercion require optional dependencies [cheshire](https://github.com/dakrone/cheshire) (5.9.0 or later) and
   [com.cognitect/transit-clj](https://github.com/cognitect/transit-clj) to be installed, respectively.
 
 `coerce` Determine which status codes to coerce response bodies. `:unexceptional` (default), `:always`, `:exceptional`. 
@@ -304,7 +304,7 @@ As a convenience, nesting can also be controlled by `:flatten-nested-keys`:
 
 ### Output coercion
 
-You can control whether you like hato to return an `InputStream` (using `:as :stream`), `byte-array` (using `:as :byte-array`) or `String` (`:as String`) with no further coercion.
+You can control whether you like hato to return an `InputStream` (using `:as :stream`), `byte-array` (using `:as :byte-array`) or `String` (`:as :string`) with no further coercion.
 
 ```clojure
 ; Returns a string response
@@ -326,9 +326,7 @@ You can control whether you like hato to return an `InputStream` (using `:as :st
 ; Coerces JSON strings into clojure data structure
 ; Requires optional dependency cheshire
 (hc/get "http://moo.com" {:as :json})
-(hc/get "http://moo.com" {:as :json-strict})
 (hc/get "http://moo.com" {:as :json-string-keys})
-(hc/get "http://moo.com" {:as :json-strict-string-keys})
 
 ; Coerce responses with exceptional status codes
 (hc/get "http://moo.com" {:as :json :coerce :always})

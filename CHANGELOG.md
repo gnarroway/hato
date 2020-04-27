@@ -3,9 +3,10 @@ All notable changes to this project will be documented in this file. This change
 
 ## [Unreleased]
 ### Changed
-- Simplify code by always using InputStream BodyHandler in client.clj, so coercion handling is pure middleware.
-This is to open the door to pluggable body handlers middleware.
-- Use cheshire `parse-stream` to decode InputStream directly. (Requires cheshire 5.9.0)
+- Use cheshire `parse-stream-strict` to decode InputStream directly. (Requires cheshire 5.9.0 or later)
+- Always parse JSON non-lazily to prevent stream being closed prematurely. See clj-http#489 for similar discussion.
+- Simplify code by always using InputStream BodyHandler in `client.clj`, so coercion handling is pure middleware.
+This is to open the door to pluggable body handler middleware.
 
 ### Fixed
 - Content type params not being parsed

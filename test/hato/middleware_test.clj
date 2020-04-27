@@ -49,9 +49,9 @@
         (is (= flattened (:query-params ((wrap-nested-params identity) {:query-params params :flatten-nested-keys [:query-params]})))))
 
       (testing "throws if multiple methods specified"
-        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:query-params params
+        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:query-params               params
                                                                               :ignore-nested-query-string true
-                                                                              :flatten-nested-keys [:query-params]})))))
+                                                                              :flatten-nested-keys        [:query-params]})))))
 
     (testing "form params"
       (testing "does not nest by default"
@@ -64,9 +64,9 @@
         (is (= flattened (:form-params ((wrap-nested-params identity) {:form-params params :flatten-nested-keys [:form-params]})))))
 
       (testing "throws if multiple methods specified"
-        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:form-params params
+        (is (thrown? IllegalArgumentException ((wrap-nested-params identity) {:form-params                params
                                                                               :flatten-nested-form-params true
-                                                                              :flatten-nested-keys [:form-params]})))))))
+                                                                              :flatten-nested-keys        [:form-params]})))))))
 
 (deftest test-wrap-basic-auth
   (testing "encoding"
