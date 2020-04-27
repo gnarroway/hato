@@ -2,7 +2,9 @@
   (:refer-clojure :exclude [get])
   (:require [clojure.test :refer :all]
             [hato.client :refer :all]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [org.httpkit.server :as http-kit]
+            [cheshire.core :as json])
   (:import (java.io InputStream)
            (java.net ProxySelector CookieHandler Authenticator CookieManager)
            (java.net.http HttpClient$Redirect HttpClient$Version HttpClient)
@@ -135,6 +137,14 @@
   (testing "can opt out"
     (is (= 500 (:status (get "https://httpbin.org/status/500" {:throw-exceptions false}))))))
 
+(defmacro with-server
+  "Spins up a local HTTP server with http-kit."
+  [handler & body]
+  `(let [s# (http-kit/run-server ~handler {:port 1234})]
+     (try ~@body
+          (finally
+            (s# :timeout 100)))))
+
 (deftest ^:integration test-coercions
   (testing "as default"
     (let [r (get "https://httpbin.org/get")]
@@ -156,7 +166,18 @@
 
   (testing "as json"
     (let [r (get "https://httpbin.org/get" {:as :json})]
-      (is (coll? (:body r))))))
+      (is (coll? (:body r)))))
+
+  (testing "large json"
+    ; Ensure large json can be parsed without the stream closing prematurely.
+    (with-server (fn app [_]
+                   {:status  200
+                    :headers {"Content-Type" "application/json"}
+                    :body    (json/generate-string (take 1000 (repeatedly (constantly {:a 1}))))})
+
+      (let [b (:body (get "http://localhost:8080" {:as :json}))]
+        (is (coll? b))
+        (is (= 1000 (count b)))))))
 
 (deftest ^:integration test-auth
   (testing "authenticator basic auth (non-preemptive) via client option"

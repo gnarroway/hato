@@ -83,12 +83,6 @@
   {:pre [json-enabled?]}
   (apply (ns-resolve (symbol "cheshire.core") (symbol "encode")) args))
 
-(defn ^:dynamic json-decode-stream
-  "Resolve and apply cheshire's json decoding dynamically."
-  [& args]
-  {:pre [json-enabled?]}
-  (apply (ns-resolve (symbol "cheshire.core") (symbol "parse-stream")) args))
-
 (defn ^:dynamic json-decode-stream-strict
   "Resolve and apply cheshire's json decoding dynamically (with lazy parsing disabled)."
   [& args]
@@ -181,9 +175,9 @@
 (defmulti coerce-response-body (fn [req _] (:as req)))
 
 (defn coerce-json-body
-  [{:keys [coerce]} {:keys [body status] :as resp} keyword? strict?]
+  [{:keys [coerce]} {:keys [body status] :as resp} keyword?]
   (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")
-        decode-func (if strict? json-decode-stream-strict json-decode-stream)]
+        decode-func json-decode-stream-strict]
     (if json-enabled?
       (cond
         (and (unexceptional-status? status)
@@ -217,16 +211,16 @@
     resp))
 
 (defmethod coerce-response-body :json [req resp]
-  (coerce-json-body req resp true false))
+  (coerce-json-body req resp true))
 
 (defmethod coerce-response-body :json-strict [req resp]
-  (coerce-json-body req resp true true))
+  (coerce-json-body req resp true))
 
 (defmethod coerce-response-body :json-strict-string-keys [req resp]
-  (coerce-json-body req resp false true))
+  (coerce-json-body req resp false))
 
 (defmethod coerce-response-body :json-string-keys [req resp]
-  (coerce-json-body req resp false false))
+  (coerce-json-body req resp false))
 
 (defmethod coerce-response-body :clojure [req resp]
   (coerce-clojure-body req resp))
