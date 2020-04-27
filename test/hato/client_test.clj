@@ -175,7 +175,7 @@
                     :headers {"Content-Type" "application/json"}
                     :body    (json/generate-string (take 1000 (repeatedly (constantly {:a 1}))))})
 
-      (let [b (:body (get "http://localhost:8080" {:as :json}))]
+      (let [b (:body (get "http://localhost:1234" {:as :json}))]
         (is (coll? b))
         (is (= 1000 (count b)))))))
 
