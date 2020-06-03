@@ -9,18 +9,23 @@
 ;;; Helpers
 
 (defn- content-disposition
-  [{:keys [part-name name content]}]
+  [{:keys [part-name name content file-name]}]
   (str "Content-Disposition: form-data; "
        (format "name=\"%s\"" (or part-name name))
-       (when (instance? File content) (format "; filename=\"%s\"" (.getName content)))))
+       (when-let [fname (or file-name
+                            (when (instance? File content)
+                              (.getName content)))]
+         (format "; filename=\"%s\"" fname))))
 
 (defn- content-type
-  [{:keys [content]}]
-  (cond
-    (string? content) "Content-Type: text/plain; charset=UTF-8"
-    (instance? File content) (str "Content-Type: " (or (Files/probeContentType (.toPath content))
-                                                       "application/octet-stream"))
-    :else "Content-Type: application/octet-stream"))
+  [{:keys [content content-type]}]
+  (str "Content-Type: "
+       (cond
+         content-type content-type
+         (string? content) "text/plain; charset=UTF-8"
+         (instance? File content) (or (Files/probeContentType (.toPath content))
+                                      "application/octet-stream")
+         :else "application/octet-stream")))
 
 (defn- content-transfer-encoding
   [{:keys [content]}]

@@ -10,11 +10,13 @@
     (is (nil? (s/explain-data ::multipart/boundary b)))))
 
 (deftest test-body
-  (let [_ (spit (io/file ".test-data") "hello world")
+  (let [_ (spit (io/file ".test-data") "[\"hello world\"]")
         ms [{:name "title" :content "My Awesome Picture"}
             {:name "Content/type" :content "image/jpeg"}
             {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
-            {:name "file" :content (io/file ".test-data")}]
+            {:name "file" :content (io/file ".test-data")}
+            {:name "data" :content (.getBytes "hi" "UTF-8") :content-type "text/plain" :file-name "data.txt"}
+            {:name "jsonParam" :content (io/file ".test-data") :content-type "application/json" :file-name "data.json"}]
         b (body ms "boundary")
         out-string (with-open [xin (io/input-stream b)
                                xout (ByteArrayOutputStream.)]
@@ -44,7 +46,19 @@
               "Content-Type: application/octet-stream\r\n"
               "Content-Transfer-Encoding: binary\r\n"
               "\r\n"
-              "hello world\r\n"
+              "[\"hello world\"]\r\n"
+              "--boundary\r\n"
+              "Content-Disposition: form-data; name=\"data\"; filename=\"data.txt\"\r\n"
+              "Content-Type: text/plain\r\n"
+              "Content-Transfer-Encoding: binary\r\n"
+              "\r\n"
+              "hi\r\n"
+              "--boundary\r\n"
+              "Content-Disposition: form-data; name=\"jsonParam\"; filename=\"data.json\"\r\n"
+              "Content-Type: application/json\r\n"
+              "Content-Transfer-Encoding: binary\r\n"
+              "\r\n"
+              "[\"hello world\"]\r\n"
               "--boundary--\r\n") out-string))))
 
 (comment

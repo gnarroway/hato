@@ -169,6 +169,16 @@ request and returns a response. Convenience wrappers are provided for the http v
   - When unset (default), a repeating parameter `a=1&a=2&a=3`
   - `:array`, a repeating param with array suffix: `a[]=1&a[]=2&a[]=3`
   - `:index`, a repeating param with array suffix and index: `a[0]=1&a[1]=2&a[2]=3`
+  
+`multipart` A sequence of maps with the following keys: 
+
+  - `:name` The name of the param
+  - `:part-name` To preserve the order of entities, `:name` will be used as the part name unless `:part-name` is specified
+  - `:content` The part's data. May be a `String`, `InputStream`, `Reader`, `File`, `char-array`, or a `byte-array`
+  - `:file-name` The part's file name. If the `:content` is a `File`, it will use `.getName` by default but may be overridden.
+  - `:content-type` The part's content type. By default, if `:content` is a `String` it will be `text/plain; charset=UTF-8`
+                    and if `:content` is a `File` it will attempt to guess the best content type or fallback to 
+                    `application/octet-stream`. 
 
 `headers` Map of lower case strings to header values, concatenated with ',' when multiple values for a key.
   This is presently a slight incompatibility with clj-http, which accepts keyword keys and list values.
@@ -377,6 +387,22 @@ To change this, set the java option to e.g. `-Djdk.httpclient.redirects.retrylim
 
 The client does not throw an exception if the retry limit has been breached. Instead, 
 it will return a response with the redirect status code (30x) and empty body.
+
+### Multipart Requests
+
+To send a multipart request, `:multipart` may be supplied as a sequence of maps as described in 
+[request options](#request-options). This will add the appropriate Content-Type header as well as replace
+the `:body` of the request with an `InputStream` of the supplied parts.
+
+```clojure
+(hc/get "http://moo.com"
+        {:multipart [{:name "title" :content "My Awesome Picture"}
+                     {:name "Content/type" :content "image/jpeg"}
+                     {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
+                     {:name "file" :content (io/file ".test-data")}
+                     {:name "data" :content (.getBytes "hi" "UTF-8") :content-type "text/plain" :file-name "data.txt"}
+                     {:name "jsonParam" :content (io/file ".test-data") :content-type "application/json" :file-name "data.json"}]})
+```
 
 
 ### Custom middleware
