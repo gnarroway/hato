@@ -1,7 +1,7 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## [Unreleased]
+## [0.6.0]
 ### Added
 - More flexibility in multipart file types ([#13](https://github.com/gnarroway/hato/issues/13) thanks @vincentjames501)
 - Alpha support for converting response body based on content-type with `:as :auto`
@@ -46,7 +46,8 @@ users to make their own request function from some stack of middleware.
 ### Added
 - Initial release
 
-[Unreleased]: https://github.com/gnarroway/hato/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/gnarroway/hato/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/gnarroway/hato/compare/v0.5.0...0.6.0
 [0.5.0]: https://github.com/gnarroway/hato/compare/v0.4.1...0.5.0
 [0.4.1]: https://github.com/gnarroway/hato/compare/v0.4.0...0.4.1
 [0.4.0]: https://github.com/gnarroway/hato/compare/v0.3.1...0.4.0
