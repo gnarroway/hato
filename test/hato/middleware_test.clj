@@ -182,6 +182,17 @@
       {"a" 1} :json-string-keys
       {"a" 1} :json-strict-string-keys))
 
+  (testing "auto performs content-type based decoding"
+    (are [input type] (= {:a [1 2]} (-> ((wrap-output-coercion (constantly {:headers {"content-type" type} :body (string->stream input)})) {:as :auto}) :body))
+      "{\"a\": [1, 2]}" "application/json"
+      "{:a [1 2]}" "application/edn"
+      "[\"^ \",\"~:a\",[1,2]]" "application/transit+json"))
+
+  (testing "auto turns text/* into strings"
+    (are [input type] (= input (-> ((wrap-output-coercion (constantly {:headers {"content-type" type} :body (string->stream input)})) {:as :auto}) :body))
+      "<html>Hello</html>" "text/html"
+      "hello,world" "text/csv"))
+
   (testing "clojure coercions"
     (is (= {:a 1} (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "{:a 1}")})) {:as :clojure}) :body))))
 

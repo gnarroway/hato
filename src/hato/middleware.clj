@@ -1,12 +1,14 @@
 (ns hato.middleware
   "Adapted from https://www.github.com/dakrone/clj-http"
   (:require
-   [clojure.edn :as edn]
-   [clojure.java.io :as io]
-   [clojure.string :as str]
-   [clojure.walk :refer [prewalk]]
-   [hato.multipart :as multipart])
+    [clojure.edn :as edn]
+    [clojure.java.io :as io]
+    [clojure.string :as str]
+    [clojure.walk :refer [prewalk]]
+    [hato.multipart :as multipart]
+    [hato.conversion :as conversion])
   (:import
+   (hato.conversion DefaultDecoder)
    (java.util
     Base64)
    (java.io
@@ -230,6 +232,15 @@
 
 (defmethod coerce-response-body :transit+msgpack [req resp]
   (coerce-transit-body req resp :msgpack))
+
+(def default-decoder (DefaultDecoder.))
+
+(defn- decode-response
+  [decoder resp]
+  (assoc resp :body (conversion/-decode decoder resp)))
+
+(defmethod coerce-response-body :auto [req resp]
+  (decode-response (or (:decoder req) default-decoder) resp))
 
 (defmethod coerce-response-body :byte-array [_ resp]
   (let [ba (with-open [^InputStream xin (:body resp)

@@ -2,11 +2,15 @@
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
 ## [Unreleased]
+### Added
+- More flexibility in multipart file types ([#13](https://github.com/gnarroway/hato/issues/13) thanks @vincentjames501)
+- Alpha support for converting response body based on content-type with `:as :auto`
+
 ### Changed
 - Use cheshire `parse-stream-strict` to decode InputStream directly. (Requires cheshire 5.9.0 or later)
-- Always parse JSON non-lazily to prevent stream being closed prematurely. See clj-http#489 for similar discussion.
+- Always parse JSON non-lazily to prevent stream being closed prematurely. 
+See [clj-http#489](https://github.com/dakrone/clj-http/issues/489) for similar discussion.
 - Simplify code by always using InputStream BodyHandler in `client.clj`, so coercion handling is pure middleware.
-This is to open the door to pluggable body handler middleware.
 
 ### Fixed
 - Content type params not being parsed

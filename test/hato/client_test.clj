@@ -164,6 +164,10 @@
     (let [r (get "https://httpbin.org/get" {:as :string})]
       (is (string? (:body r)))))
 
+  (testing "as auto"
+    (let [r (get "https://httpbin.org/get" {:as :auto})]
+      (is (coll? (:body r)))))
+
   (testing "as json"
     (let [r (get "https://httpbin.org/get" {:as :json})]
       (is (coll? (:body r)))))

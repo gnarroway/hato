@@ -1,9 +1,9 @@
 (ns hato.conversion
-  (:require [clojure.edn :as edn]
-            [clojure.java.io :as io])
-  (:import (java.io ByteArrayInputStream ByteArrayOutputStream InputStream)))
+  (:require [clojure.edn :as edn])
+  (:import (java.io InputStream)))
 
 (set! *warn-on-reflection* true)
+
 ;;; protocols
 
 (defprotocol Decoder
@@ -30,7 +30,6 @@
 (defmulti decode
   "Extensible content-type based decoder."
   :content-type)
-(namespace (keyword "foo/bar"))
 
 (defmethod decode :default
   [{:keys [content-type] :as resp}]
