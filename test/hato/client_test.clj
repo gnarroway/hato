@@ -135,7 +135,13 @@
     (is (thrown? Exception (get "https://httpbin.org/status/500"))))
 
   (testing "can opt out"
-    (is (= 500 (:status (get "https://httpbin.org/status/500" {:throw-exceptions false}))))))
+    (is (= 500 (:status (get "https://httpbin.org/status/500" {:throw-exceptions false})))))
+
+  (testing "async"
+    (is (thrown? Exception @(get "https://httpbin.org/status/400" {:async? true}))
+        "default callbacks throws on error")
+    (is (= 400 (:status @(get "https://httpbin.org/status/400" {:async? true :throw-exceptions? false})))
+        "default callbacks does not throw if :throw-exceptions? is false")))
 
 (defmacro with-server
   "Spins up a local HTTP server with http-kit."

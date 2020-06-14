@@ -9,7 +9,6 @@
    (java.net.http
     HttpClient$Redirect
     HttpClient$Version
-    HttpResponse$BodyHandler
     HttpResponse$BodyHandlers
     HttpRequest$BodyPublisher
     HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest HttpClient$Builder)
@@ -323,7 +322,7 @@
   [method url & [{:keys [async?] :as opts} respond raise]]
   (if-not async?
     (request (merge opts {:request-method method :url url}))
-    (request (merge opts {:request-method method :url url}) (or respond identity) (or raise identity))))
+    (request (merge opts {:request-method method :url url}) (or respond identity) (or raise #(throw %)))))
 
 (def get (partial configure-and-execute :get))
 (def post (partial configure-and-execute :post))

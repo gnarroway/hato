@@ -1,9 +1,14 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- Exceptions are not thrown correctly in async requests with default callbacks (#13)
+
 ## [0.6.0]
 ### Added
-- More flexibility in multipart file types ([#13](https://github.com/gnarroway/hato/issues/13) thanks @vincentjames501)
+- More flexibility in multipart file types (#13 thanks @vincentjames501)
 - Alpha support for converting response body based on content-type with `:as :auto`
 
 ### Changed
@@ -25,7 +30,7 @@ See [clj-http#489](https://github.com/dakrone/clj-http/issues/489) for similar d
 
 ## [0.4.0] - 2019-08-06
 ### Added
-- Multipart support ([#1](https://github.com/gnarroway/hato/issues/1))
+- Multipart support (#1)
 
 ### Changed
 - Readme notes it is now a stable API and ready for use.
@@ -35,11 +40,11 @@ See [clj-http#489](https://github.com/dakrone/clj-http/issues/489) for similar d
 - This CHANGELOG file
 
 ### Fixed
-- Double encoding of query string ([#3](https://github.com/gnarroway/hato/issues/3)). 
+- Double encoding of query string (#3). 
 
 ## [0.3.0] - 2019-07-01
 ### Added
-- Support custom middleware ([#2](https://github.com/gnarroway/hato/issues/2)). This makes it easier for 
+- Support custom middleware (#2). This makes it easier for 
 users to make their own request function from some stack of middleware.
 
 ## 0.2.0 - 2019-06-24
