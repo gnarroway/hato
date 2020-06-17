@@ -1,12 +1,12 @@
 (ns hato.middleware
   "Adapted from https://www.github.com/dakrone/clj-http"
   (:require
-    [clojure.edn :as edn]
-    [clojure.java.io :as io]
-    [clojure.string :as str]
-    [clojure.walk :refer [prewalk]]
-    [hato.multipart :as multipart]
-    [hato.conversion :as conversion])
+   [clojure.edn :as edn]
+   [clojure.java.io :as io]
+   [clojure.string :as str]
+   [clojure.walk :refer [prewalk]]
+   [hato.multipart :as multipart]
+   [hato.conversion :as conversion])
   (:import
    (hato.conversion DefaultDecoder)
    (java.util

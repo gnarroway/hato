@@ -3,6 +3,9 @@ All notable changes to this project will be documented in this file. This change
 
 ## [Unreleased]
 
+### Changed
+- Make ssl-context more permissive (#17)
+
 ### Fixed
 - Exceptions are not thrown correctly in async requests with default callbacks (#13)
 
