@@ -24,7 +24,7 @@ hato requires JDK 11 and above. If you are running an older version of Java, ple
 For Leinengen, add this to your project.clj
 
 ```clojure
-[hato "0.6.0"]
+[hato "0.7.0"]
 ```
 
 ## Quickstart
@@ -357,14 +357,27 @@ By default, hato only coerces JSON responses for unexceptional statuses. Control
 Client authentication can be done by passing in an SSLContext:
 
 ```clojure
+; Directly pass in an SSLContext that you made yourself
+(hc/get "https://secure-url.com" {:http-client {:ssl-context SomeSSLContext}})
+
 ; Pass in your credentials
 (hc/get "https://secure-url.com" {:http-client {:ssl-context {:keystore (io/resource "somepath.p12") 
                                                               :keystore-pass "password"
                                                               :trust-store (io/resource "cacerts.p12"
                                                               :trust-store-pass "another-password")}}})                                             
+```
+If either `:keystore` or `:trust-store` are not provided, the respective system default will be used.
 
-; Directly pass in an SSLContext that you made yourself
-(hc/get "https://secure-url.com" {:http-client {:ssl-context SomeSSLContext}})
+The defaults can be overridden with java options, so the below is equivalent to the above (with the caveat
+that the path should be on the filesystem rather than in the jar resources):
+
+```
+-Djavax.net.ssl.keyStore=somepath.12
+-Djavax.net.ssl.keyStoreType=pkcs12
+-Djavax.net.ssl.keyStorePassword=password
+-Djavax.net.ssl.trustStore=cacerts.p12
+-Djavax.net.ssl.trustStoreType=pkcs12
+-Djavax.net.ssl.trustStorePassword=another-password
 ```
 
 ### Redirects
