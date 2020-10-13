@@ -1,8 +1,11 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## [0.7.0]
+## [0.7.1]
+### Fixed 
+- Make `request` more permissive to handle request with async? but without callbacks throwing ClassCastException (#19)
 
+## [0.7.0]
 ### Changed
 - Make ssl-context more permissive (#17)
 
@@ -54,7 +57,8 @@ users to make their own request function from some stack of middleware.
 ### Added
 - Initial release
 
-[Unreleased]: https://github.com/gnarroway/hato/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/gnarroway/hato/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/gnarroway/hato/compare/v0.7.0...0.7.1
 [0.7.0]: https://github.com/gnarroway/hato/compare/v0.6.0...0.7.0
 [0.6.0]: https://github.com/gnarroway/hato/compare/v0.5.0...0.6.0
 [0.5.0]: https://github.com/gnarroway/hato/compare/v0.4.1...0.5.0
