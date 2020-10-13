@@ -115,6 +115,10 @@
                       :title        "My Awesome Picture"}} (-> r :body (select-keys [:files :form])))))))
 
 (deftest ^:integration test-basic-response-async
+  (testing "basic request returns something"
+    (let [r @(request {:url "https://httpbin.org/get" :async? true})]
+      (is (= 200 (:status r)))))
+
   (testing "basic get request returns response map"
     (let [r @(get "https://httpbin.org/get" {:async? true})]
       (is (pos-int? (:request-time r)))
@@ -206,8 +210,9 @@
     (is (thrown? Exception (get "https://httpbin.org/basic-auth/user/pass" {:basic-auth {:user "user" :pass "invalid"}})))))
 
 (deftest ^:integration test-redirects
-  (let [redirect-to "https://httpbin.org/get"
-        uri (format "https://httpbin.org/redirect-to?url=%s" redirect-to)]
+  ; Changed provider due to https://github.com/postmanlabs/httpbin/issues/617
+  (let [redirect-to "https://httpbingo.org/get"
+        uri (format "https://httpbingo.org/redirect-to?url=%s" redirect-to)]
     (testing "no redirects (default)"
       (let [r (get uri {:as :string})]
         (is (= 302 (:status r)))
@@ -229,13 +234,13 @@
         (is (= redirect-to (:uri r)))))
 
     (testing "normal redirect (not same protocol)"
-      (let [https-tp-http-uri (format "https://httpbin.org/redirect-to?url=%s" "http://httpbin.org/get")
+      (let [https-tp-http-uri (format "https://httpbingo.org/redirect-to?url=%s" "http://httpbingo.org/get")
             r (get https-tp-http-uri {:as :string :http-client {:redirect-policy :normal}})]
         (is (= 302 (:status r)))
         (is (= https-tp-http-uri (:uri r)))))
 
     (testing "default max redirects"
-      (are [status redirects] (= status (:status (get (str "https://httpbin.org/redirect/" redirects) {:http-client {:redirect-policy :normal}})))
+      (are [status redirects] (= status (:status (get (str "https://httpbingo.org/redirect/" redirects) {:http-client {:redirect-policy :normal}})))
         200 4
         302 5))))
 

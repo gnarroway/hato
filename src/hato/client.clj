@@ -321,14 +321,17 @@
                    (raise cause)
                    (raise e))))))))))
 
-(def request (middleware/wrap-request request*))
+(defn request
+  [req & [respond raise]]
+  (let [wrapped (middleware/wrap-request request*)]
+    (if-not (:async? req)
+      (wrapped req)
+      (wrapped req (or respond identity) (or raise #(throw %))))))
 
 (defn- configure-and-execute
   "Convenience wrapper"
-  [method url & [{:keys [async?] :as opts} respond raise]]
-  (if-not async?
-    (request (merge opts {:request-method method :url url}))
-    (request (merge opts {:request-method method :url url}) (or respond identity) (or raise #(throw %)))))
+  [method url & [opts respond raise]]
+  (request (merge opts {:request-method method :url url}) respond raise))
 
 (def get (partial configure-and-execute :get))
 (def post (partial configure-and-execute :post))
