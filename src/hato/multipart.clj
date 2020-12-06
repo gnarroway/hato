@@ -14,7 +14,7 @@
        (format "name=\"%s\"" (or part-name name))
        (when-let [fname (or file-name
                             (when (instance? File content)
-                              (.getName content)))]
+                              (.getName ^File content)))]
          (format "; filename=\"%s\"" fname))))
 
 (defn- content-type
@@ -23,7 +23,7 @@
        (cond
          content-type content-type
          (string? content) "text/plain; charset=UTF-8"
-         (instance? File content) (or (Files/probeContentType (.toPath content))
+         (instance? File content) (or (Files/probeContentType (.toPath ^File content))
                                       "application/octet-stream")
          :else "application/octet-stream")))
 

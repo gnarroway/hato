@@ -8,7 +8,7 @@
 
 (defn byte-buffer->byte-array
   "Converts a byte buffer to a byte array."
-  [^ByteBuffer buf]
+  ^bytes [^ByteBuffer buf]
   (let [bytes (byte-array (.remaining buf))]
     (.get buf bytes)
     bytes))
@@ -94,7 +94,7 @@
   (testing "server sends back pong on ping request."
     (let [ping-p (promise)
           pong-p (promise)]
-      (with-ws-server {:on-ping (fn [_ x]
+      (with-ws-server {:on-ping (fn [_ ^bytes x]
                                   (deliver ping-p (String. x "UTF-8")))}
         (let [ws @(websocket "ws://localhost:1234" {:on-pong (fn [_ msg]
                                                                (deliver pong-p (String. (byte-buffer->byte-array msg) "UTF-8")))})]

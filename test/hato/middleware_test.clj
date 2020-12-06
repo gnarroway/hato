@@ -284,7 +284,7 @@
 
   (testing "coercing to transit+json"
     (let [r ((wrap-form-params identity) {:form-params {:moo "cow boy!"} :request-method :post :content-type :transit+json})]
-      (is (= "[\"^ \",\"~:moo\",\"cow boy!\"]" (String. (:body r)))))))
+      (is (= "[\"^ \",\"~:moo\",\"cow boy!\"]" (String. ^bytes (:body r)))))))
 
 (deftest test-wrap-method
   (testing "when no method option"

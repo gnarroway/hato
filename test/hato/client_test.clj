@@ -15,7 +15,8 @@
 (deftest test-build-http-client
   (testing "authenticator"
     (is (.isEmpty (.authenticator (build-http-client {}))) "not set by default")
-    (is (= "user" (-> (build-http-client {:authenticator {:user "user" :pass "pass"}}) (.authenticator) ^Authenticator (.get) (.getPasswordAuthentication) (.getUserName))))
+    (is (= "user" (-> (build-http-client {:authenticator {:user "user" :pass "pass"}})
+                      .authenticator .get .getPasswordAuthentication .getUserName)))
     (is (.isEmpty (.authenticator (build-http-client {:authenticator :some-invalid-value}))) "ignore invalid input"))
 
   (testing "connect-timeout"
@@ -37,7 +38,7 @@
           ":cookie-handler takes precedence over :cookie-policy")))
 
   (testing "redirect-policy"
-    (is (= HttpClient$Redirect/NEVER (.followRedirects (build-http-client {}))) "NEVER by default")
+    (is (= HttpClient$Redirect/NORMAL (.followRedirects (build-http-client {}))) "NORMAL by default")
     (are [expected option] (= expected (.followRedirects (build-http-client {:redirect-policy option})))
       HttpClient$Redirect/ALWAYS :always
       HttpClient$Redirect/NEVER :never
@@ -163,7 +164,7 @@
   (testing "as byte array"
     (let [r (get "https://httpbin.org/get" {:as :byte-array})]
       (is (instance? (Class/forName "[B") (:body r)))
-      (is (string? (String. (:body r))))))
+      (is (string? (String. ^bytes (:body r))))))
 
   (testing "as stream"
     (let [r (get "https://httpbin.org/get" {:as :stream})]
@@ -213,13 +214,13 @@
   ; Changed provider due to https://github.com/postmanlabs/httpbin/issues/617
   (let [redirect-to "https://httpbingo.org/get"
         uri (format "https://httpbingo.org/redirect-to?url=%s" redirect-to)]
-    (testing "no redirects (default)"
+    (testing "normal redirect (default)"
       (let [r (get uri {:as :string})]
-        (is (= 302 (:status r)))
-        (is (= uri (:uri r)))))
+        (is (= 200 (:status r)))
+        (is (= redirect-to (:uri r)))))
 
     (testing "explicitly never"
-      (let [r (get uri {:as :string :redirect-policy :never})]
+      (let [r (get uri {:as :string :http-client {:redirect-policy :never}})]
         (is (= 302 (:status r)))
         (is (= uri (:uri r)))))
 
@@ -228,12 +229,12 @@
         (is (= 200 (:status r)))
         (is (= redirect-to (:uri r)))))
 
-    (testing "normal redirect (same protocol)"
+    (testing "normal redirect (same protocol - accepted)"
       (let [r (get uri {:as :string :http-client {:redirect-policy :normal}})]
         (is (= 200 (:status r)))
         (is (= redirect-to (:uri r)))))
 
-    (testing "normal redirect (not same protocol)"
+    (testing "normal redirect (different protocol - denied)"
       (let [https-tp-http-uri (format "https://httpbingo.org/redirect-to?url=%s" "http://httpbingo.org/get")
             r (get https-tp-http-uri {:as :string :http-client {:redirect-policy :normal}})]
         (is (= 302 (:status r)))
