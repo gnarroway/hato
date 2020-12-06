@@ -19,8 +19,8 @@
     (java.util.function Function Supplier)
     (java.io File InputStream)
     (clojure.lang ExceptionInfo)
-    (java.nio CharBuffer ByteBuffer)
-    (java.nio.charset CharsetEncoder CharsetDecoder Charset)))
+    (java.nio ByteBuffer)
+    (java.nio.charset  Charset)))
 
 (defn- ->Authenticator
   [v]
