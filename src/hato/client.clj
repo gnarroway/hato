@@ -13,22 +13,34 @@
       HttpRequest$BodyPublisher
       HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest HttpClient$Builder HttpRequest$Builder)
     (java.net CookiePolicy CookieManager URI ProxySelector Authenticator PasswordAuthentication CookieHandler)
-   (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
-   (java.security KeyStore)
-   (java.time Duration)
-   (java.util.function Function Supplier)
-   (java.io File InputStream)
-   (clojure.lang ExceptionInfo)))
+    (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
+    (java.security KeyStore)
+    (java.time Duration)
+    (java.util.function Function Supplier)
+    (java.io File InputStream)
+    (clojure.lang ExceptionInfo)
+    (java.nio CharBuffer ByteBuffer)
+    (java.nio.charset CharsetEncoder CharsetDecoder Charset)))
 
 (defn- ->Authenticator
   [v]
   (if (instance? Authenticator v)
     v
-    (let [{:keys [user pass]} v]
+    (let [{:keys [user pass encoding]} v]
       (when (and user pass)
         (proxy [Authenticator] []
           (getPasswordAuthentication []
-            (PasswordAuthentication. user (char-array pass))))))))
+            (PasswordAuthentication. user
+              (cond ;; support passwords as String, Sequential or byte/char-array
+                (string? pass)     (.toCharArray ^String pass)
+                (sequential? pass) (char-array pass)
+                (bytes? pass)  (-> (or encoding "UTF-8")
+                                   Charset/forName
+                                   .newDecoder
+                                   (.decode (ByteBuffer/wrap pass))
+                                   .array)
+                ;; presumably already a char-array
+                :else pass))))))))
 
 (defn- ->BodyHandler
   "Returns a BodyHandler.
