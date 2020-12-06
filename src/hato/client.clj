@@ -84,6 +84,13 @@
     v
     (-> v name str/upper-case HttpClient$Redirect/valueOf)))
 
+(defn- load-keystore
+  ^KeyStore [store store-type store-pass]
+  (when store
+    (with-open [kss (io/input-stream store)]
+      (doto (KeyStore/getInstance store-type)
+        (.load kss (char-array store-pass))))))
+
 (defn ->SSLContext
   "Returns an SSLContext.
 
@@ -104,20 +111,12 @@
     (let [{:keys [keystore keystore-type keystore-pass trust-store trust-store-type trust-store-pass]
            :or   {keystore-type "pkcs12" trust-store-type "pkcs12"}} v
 
-          ^KeyStore ks (when keystore
-                         (with-open [kss (io/input-stream keystore)]
-                           (doto (KeyStore/getInstance keystore-type)
-                             (.load kss (char-array keystore-pass)))))
-
-          ^KeyStore ts (when trust-store
-                         (with-open [tss (io/input-stream trust-store)]
-                           (doto (KeyStore/getInstance trust-store-type)
-                             (.load tss (char-array trust-store-pass)))))
-
+          ks (load-keystore keystore keystore-type keystore-pass)
+          ts (load-keystore trust-store trust-store-type trust-store-pass)
           kmf (doto (KeyManagerFactory/getInstance (KeyManagerFactory/getDefaultAlgorithm))
                 (.init ks (char-array keystore-pass)))
-
-          tmf (doto (TrustManagerFactory/getInstance (TrustManagerFactory/getDefaultAlgorithm))
+          tmf (doto (TrustManagerFactory/getInstance
+                      (TrustManagerFactory/getDefaultAlgorithm))
                 (.init ts))]
 
       (doto (SSLContext/getInstance "TLS")
