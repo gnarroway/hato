@@ -159,12 +159,13 @@
   `request` is the map of request options output by `make-request`
   `response` is the raw HttpResponse"
   [{:keys [request ^HttpResponse response http-client]}]
-  {:uri         (.toString (.uri response))
+  {:uri         (str (.uri response))
    :status      (.statusCode response)
    :body        (.body response)
-   :headers     (->> (.map (.headers response))
-                     (map (fn [[k v]] (if (> (count v) 1) [k v] [k (first v)])))
-                     (into {}))
+   :headers     (->> response
+                     .headers
+                     .map
+                     (into {} (map (fn [[k v]] (if (> (count v) 1) [k v] [k (first v)])))))
    :version     (-> response .version .name Version->kw)
    :http-client http-client
    :request     (assoc request :http-request (.request response))})
