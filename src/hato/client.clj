@@ -238,9 +238,7 @@
            proxy
            ssl-context
            ssl-parameters
-           version]
-    :or {redirect-policy :normal ;; https to http not allowed
-         version :http-2}}]      ;; will fallback to version 1.1
+           version]}]
   (cond-> (HttpClient/newBuilder)
           connect-timeout (.connectTimeout (Duration/ofMillis connect-timeout))
           redirect-policy (.followRedirects (->Redirect redirect-policy))
@@ -283,8 +281,7 @@
            version
            expect-continue]
     :or   {request-method :get
-           scheme :https
-           timeout 2000} ;; a sensible default?
+           timeout 120000} ;; 2 minutes
     :as   req}]
   (cond-> (HttpRequest/newBuilder
             (URI. (str (name scheme)

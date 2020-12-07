@@ -38,7 +38,7 @@
           ":cookie-handler takes precedence over :cookie-policy")))
 
   (testing "redirect-policy"
-    (is (= HttpClient$Redirect/NORMAL (.followRedirects (build-http-client {}))) "NORMAL by default")
+    (is (= HttpClient$Redirect/NEVER (.followRedirects (build-http-client {}))) "NEVER by default")
     (are [expected option] (= expected (.followRedirects (build-http-client {:redirect-policy option})))
       HttpClient$Redirect/ALWAYS :always
       HttpClient$Redirect/NEVER :never
@@ -214,10 +214,10 @@
   ; Changed provider due to https://github.com/postmanlabs/httpbin/issues/617
   (let [redirect-to "https://httpbingo.org/get"
         uri (format "https://httpbingo.org/redirect-to?url=%s" redirect-to)]
-    (testing "normal redirect (default)"
+    (testing "no redirects (default)"
       (let [r (get uri {:as :string})]
-        (is (= 200 (:status r)))
-        (is (= redirect-to (:uri r)))))
+        (is (= 302 (:status r)))
+        (is (= uri (:uri r)))))
 
     (testing "explicitly never"
       (let [r (get uri {:as :string :http-client {:redirect-policy :never}})]
