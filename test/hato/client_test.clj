@@ -6,7 +6,7 @@
             [org.httpkit.server :as http-kit]
             [cheshire.core :as json])
   (:import (java.io InputStream)
-           (java.net ProxySelector CookieHandler Authenticator CookieManager)
+           (java.net ProxySelector CookieHandler CookieManager)
            (java.net.http HttpClient$Redirect HttpClient$Version HttpClient)
            (java.time Duration)
            (javax.net.ssl SSLContext)
@@ -15,7 +15,8 @@
 (deftest test-build-http-client
   (testing "authenticator"
     (is (.isEmpty (.authenticator (build-http-client {}))) "not set by default")
-    (is (= "user" (-> (build-http-client {:authenticator {:user "user" :pass "pass"}}) (.authenticator) ^Authenticator (.get) (.getPasswordAuthentication) (.getUserName))))
+    (is (= "user" (-> (build-http-client {:authenticator {:user "user" :pass "pass"}})
+                      .authenticator .get .getPasswordAuthentication .getUserName)))
     (is (.isEmpty (.authenticator (build-http-client {:authenticator :some-invalid-value}))) "ignore invalid input"))
 
   (testing "connect-timeout"
@@ -163,7 +164,7 @@
   (testing "as byte array"
     (let [r (get "https://httpbin.org/get" {:as :byte-array})]
       (is (instance? (Class/forName "[B") (:body r)))
-      (is (string? (String. (:body r))))))
+      (is (string? (String. ^bytes (:body r))))))
 
   (testing "as stream"
     (let [r (get "https://httpbin.org/get" {:as :stream})]
@@ -219,7 +220,7 @@
         (is (= uri (:uri r)))))
 
     (testing "explicitly never"
-      (let [r (get uri {:as :string :redirect-policy :never})]
+      (let [r (get uri {:as :string :http-client {:redirect-policy :never}})]
         (is (= 302 (:status r)))
         (is (= uri (:uri r)))))
 
@@ -228,12 +229,12 @@
         (is (= 200 (:status r)))
         (is (= redirect-to (:uri r)))))
 
-    (testing "normal redirect (same protocol)"
+    (testing "normal redirect (same protocol - accepted)"
       (let [r (get uri {:as :string :http-client {:redirect-policy :normal}})]
         (is (= 200 (:status r)))
         (is (= redirect-to (:uri r)))))
 
-    (testing "normal redirect (not same protocol)"
+    (testing "normal redirect (different protocol - denied)"
       (let [https-tp-http-uri (format "https://httpbingo.org/redirect-to?url=%s" "http://httpbingo.org/get")
             r (get https-tp-http-uri {:as :string :http-client {:redirect-policy :normal}})]
         (is (= 302 (:status r)))

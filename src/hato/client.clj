@@ -11,8 +11,8 @@
     HttpClient$Version
     HttpResponse$BodyHandlers
     HttpRequest$BodyPublisher
-    HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest HttpClient$Builder)
-   (java.net CookiePolicy CookieManager URI ProxySelector Authenticator PasswordAuthentication)
+    HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest HttpClient$Builder HttpRequest$Builder)
+   (java.net CookiePolicy CookieManager URI ProxySelector Authenticator PasswordAuthentication CookieHandler)
    (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
    (java.security KeyStore)
    (java.time Duration)
@@ -84,6 +84,13 @@
     v
     (-> v name str/upper-case HttpClient$Redirect/valueOf)))
 
+(defn- load-keystore
+  ^KeyStore [store store-type store-pass]
+  (when store
+    (with-open [kss (io/input-stream store)]
+      (doto (KeyStore/getInstance store-type)
+        (.load kss (char-array store-pass))))))
+
 (defn ->SSLContext
   "Returns an SSLContext.
 
@@ -104,15 +111,8 @@
     (let [{:keys [keystore keystore-type keystore-pass trust-store trust-store-type trust-store-pass]
            :or   {keystore-type "pkcs12" trust-store-type "pkcs12"}} v
 
-          ks (when keystore
-               (with-open [kss (io/input-stream keystore)]
-                 (doto (KeyStore/getInstance keystore-type)
-                   (.load kss (char-array keystore-pass)))))
-
-          ts (when trust-store
-               (with-open [tss (io/input-stream trust-store)]
-                 (doto (KeyStore/getInstance trust-store-type)
-                   (.load tss (char-array trust-store-pass)))))
+          ks (load-keystore keystore keystore-type keystore-pass)
+          ts (load-keystore trust-store trust-store-type trust-store-pass)
 
           kmf (doto (KeyManagerFactory/getInstance (KeyManagerFactory/getDefaultAlgorithm))
                 (.init ks (char-array keystore-pass)))
@@ -148,13 +148,13 @@
   `request` is the map of request options output by `make-request`
   `response` is the raw HttpResponse"
   [{:keys [request ^HttpResponse response http-client]}]
-  {:uri         (.toString (.uri response))
+  {:uri         (str (.uri response))
    :status      (.statusCode response)
    :body        (.body response)
    :headers     (->> (.map (.headers response))
                      (map (fn [[k v]] (if (> (count v) 1) [k v] [k (first v)])))
                      (into {}))
-   :version     (-> response (.version) (.name) Version->kw)
+   :version     (-> response .version .name Version->kw)
    :http-client http-client
    :request     (assoc request :http-request (.request response))})
 
@@ -183,7 +183,27 @@
 
 ;;;
 
-(defn build-http-client
+(defn- with-headers
+  ^HttpRequest$Builder [builder headers]
+  (reduce-kv
+   (fn [^HttpRequest$Builder b ^String hk ^String hv]
+     (.header b hk hv))
+   builder
+   headers))
+
+(defn- with-authenticator
+  ^HttpClient$Builder [^HttpClient$Builder b a]
+  (if-some [a (->Authenticator a)]
+    (.authenticator b a)
+    b))
+
+(defn- with-cookie-handler
+  ^HttpClient$Builder [^HttpClient$Builder b cookie-handler cookie-policy]
+  (if-some [^CookieHandler ch (or cookie-handler (cookie-manager cookie-policy))]
+    (.cookieHandler b ch)
+    b))
+
+(defn ^HttpClient build-http-client
   "Creates an HttpClient from an option map.
 
   Options:
@@ -207,38 +227,19 @@
            ssl-context
            ssl-parameters
            version]}]
-  (let [builder (HttpClient/newBuilder)]
-    (when authenticator
-      (when-let [a (->Authenticator authenticator)]
-        (.authenticator builder a)))
+  (cond-> (HttpClient/newBuilder)
+    connect-timeout (.connectTimeout (Duration/ofMillis connect-timeout))
+    redirect-policy (.followRedirects (->Redirect redirect-policy))
+    priority (.priority priority)
+    proxy (.proxy (->ProxySelector proxy))
+    version (.version (->Version version))
+    ssl-context (.sslContext (->SSLContext ssl-context))
+    ssl-parameters (.sslParameters ssl-parameters)
+    authenticator (with-authenticator authenticator)
+    (or cookie-handler cookie-policy) (with-cookie-handler cookie-handler cookie-policy)
+    true .build))
 
-    (when-let [ch (or cookie-handler (cookie-manager cookie-policy))]
-      (.cookieHandler builder ch))
-
-    (when connect-timeout
-      (.connectTimeout builder (Duration/ofMillis connect-timeout)))
-
-    (when redirect-policy
-      (.followRedirects builder (->Redirect redirect-policy)))
-
-    (when priority
-      (.priority builder priority))
-
-    (when proxy
-      (.proxy builder (->ProxySelector proxy)))
-
-    (when ssl-context
-      (.sslContext builder (->SSLContext ssl-context)))
-
-    (when ssl-parameters
-      (.sslParameters builder ssl-parameters))
-
-    (when version
-      (.version builder (->Version version)))
-
-    (.build builder)))
-
-(defn ring-request->HttpRequest
+(defn ^HttpRequest ring-request->HttpRequest
   "Creates an HttpRequest from a ring request map.
 
   -- Standard ring request
@@ -268,28 +269,20 @@
            expect-continue]
     :or   {request-method :get}
     :as   req}]
-  (let [builder (HttpRequest/newBuilder
-                 (URI. (str (name scheme)
-                            "://"
-                            server-name
-                            (when server-port (str ":" server-port))
-                            uri
-                            (when query-string (str "?" query-string)))))]
-    (.method builder (str/upper-case (name request-method)) (->BodyPublisher req))
-
-    (when expect-continue
-      (.expectContinue builder expect-continue))
-
-    (when timeout
-      (.timeout builder (Duration/ofMillis timeout)))
-
-    (when version
-      (.version builder (->Version version)))
-
-    (doseq [[header-n header-v] headers]
-      (.header builder header-n header-v))
-
-    (.build builder)))
+  (cond-> (HttpRequest/newBuilder
+           (URI. (str (name scheme)
+                      "://"
+                      server-name
+                      (some->> server-port (str ":"))
+                      uri
+                      (some->> query-string (str "?")))))
+    expect-continue (.expectContinue expect-continue)
+    version (.version (->Version version))
+    headers (with-headers headers)
+    timeout (.timeout (Duration/ofMillis timeout))
+    true (-> (.method (str/upper-case (name request-method))
+                      (->BodyPublisher req))
+             .build)))
 
 (defn request*
   [{:keys [http-client async? as]
@@ -324,9 +317,9 @@
 (defn request
   [req & [respond raise]]
   (let [wrapped (middleware/wrap-request request*)]
-    (if-not (:async? req)
-      (wrapped req)
-      (wrapped req (or respond identity) (or raise #(throw %))))))
+    (if (:async? req)
+      (wrapped req (or respond identity) (or raise #(throw %)))
+      (wrapped req))))
 
 (defn- configure-and-execute
   "Convenience wrapper"

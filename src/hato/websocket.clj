@@ -6,8 +6,6 @@
            (java.nio ByteBuffer)
            (java.util.function Function)))
 
-(set! *warn-on-reflection* true)
-
 (defn request->WebSocketListener
   "Constructs a new WebSocket listener to receive events for a given WebSocket connection.
 
@@ -64,6 +62,14 @@
       (when on-error
         (on-error ws err)))))
 
+(defn- with-headers
+  ^WebSocket$Builder [builder headers]
+  (reduce-kv
+   (fn [^WebSocket$Builder b ^String hk ^String hv]
+     (.header b hk hv))
+   builder
+   headers))
+
 (defn websocket*
   "Same as `websocket` but take all arguments as a single map"
   [{:keys [uri
@@ -73,20 +79,17 @@
            connect-timeout
            subprotocols]
     :as opts}]
-  (let [^HttpClient http-client (if (instance? HttpClient http-client) http-client (HttpClient/newHttpClient))
-        ^WebSocket$Listener listener (if (instance? WebSocket$Listener listener) listener (request->WebSocketListener opts))]
-
-    (let [^WebSocket$Builder builder (.newWebSocketBuilder http-client)]
-      (doseq [[header-n header-v] headers]
-        (.header builder header-n header-v))
-
-      (when connect-timeout
-        (.connectTimeout builder (Duration/ofMillis connect-timeout)))
-
-      (when (seq subprotocols)
-        (.subprotocols builder (first subprotocols) (into-array String (rest subprotocols))))
-
-      (.buildAsync builder (URI/create uri) listener))))
+  (let [^HttpClient http-client (if (instance? HttpClient http-client)
+                                  http-client
+                                  (HttpClient/newHttpClient))
+        ^WebSocket$Listener listener (if (instance? WebSocket$Listener listener)
+                                       listener
+                                       (request->WebSocketListener opts))]
+    (cond-> (.newWebSocketBuilder http-client)
+      connect-timeout    (.connectTimeout (Duration/ofMillis connect-timeout))
+      (seq subprotocols) (.subprotocols (first subprotocols) (into-array String (rest subprotocols)))
+      headers            (with-headers headers)
+      true               (.buildAsync (URI/create uri) listener))))
 
 (defn websocket
   "Builds a new WebSocket connection from a request object and returns a future connection.

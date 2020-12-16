@@ -2,8 +2,6 @@
   (:require [clojure.edn :as edn])
   (:import (java.io InputStream)))
 
-(set! *warn-on-reflection* true)
-
 ;;; protocols
 
 (defprotocol Decoder

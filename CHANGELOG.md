@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [Unreleased]
+### Fixed
+- Remove reflective calls (#22) - thanks @jimpil
+
 ## [0.7.1]
 ### Fixed 
 - Make `request` more permissive to handle request with async? but without callbacks throwing ClassCastException (#19)

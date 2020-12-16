@@ -22,8 +22,6 @@
    (java.util.zip
     GZIPInputStream InflaterInputStream ZipException Inflater)))
 
-(set! *warn-on-reflection* true)
-
 ;; Cheshire is an optional dependency, so we check for it at compile time.
 
 
@@ -113,8 +111,9 @@
 
 (defn url-encode
   "Returns a UTF-8 URL encoded version of the given string."
-  [^String unencoded & [^String encoding]]
-  (URLEncoder/encode unencoded (or encoding "UTF-8")))
+  [^String unencoded & [encoding]]
+  (let [^String enc (or encoding "UTF-8")]
+    (URLEncoder/encode unencoded enc)))
 
 
 ;;;
@@ -140,8 +139,8 @@
      :server-port  (when-pos (.getPort url-parsed))
      :uri          (url-encode-illegal-characters (.getPath url-parsed))
      :url          url
-     :user-info    (when-let [user-info (.getUserInfo url-parsed)]
-                     (URLDecoder/decode user-info))
+     :user-info    (some-> (.getUserInfo url-parsed)
+                           (URLDecoder/decode "UTF-8"))
      :query-string (url-encode-illegal-characters (.getQuery url-parsed))}))
 
 
