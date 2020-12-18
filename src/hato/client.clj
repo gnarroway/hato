@@ -6,19 +6,19 @@
    [hato.middleware :as middleware]
    [clojure.java.io :as io])
   (:import
-   (java.net.http
-    HttpClient$Redirect
-    HttpClient$Version
-    HttpResponse$BodyHandlers
-    HttpRequest$BodyPublisher
-    HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest HttpClient$Builder HttpRequest$Builder)
-   (java.net CookiePolicy CookieManager URI ProxySelector Authenticator PasswordAuthentication CookieHandler)
-   (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
-   (java.security KeyStore)
-   (java.time Duration)
-   (java.util.function Function Supplier)
-   (java.io File InputStream)
-   (clojure.lang ExceptionInfo)))
+    (java.net.http
+      HttpClient$Redirect
+      HttpClient$Version
+      HttpResponse$BodyHandlers
+      HttpRequest$BodyPublisher
+      HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest HttpClient$Builder HttpRequest$Builder)
+    (java.net CookiePolicy CookieManager URI ProxySelector Authenticator PasswordAuthentication CookieHandler UnknownHostException)
+    (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext SSLException)
+    (java.security KeyStore)
+    (java.time Duration)
+    (java.util.function Function Supplier BiFunction)
+    (java.io File InputStream InterruptedIOException IOException)
+    (java.util.concurrent CompletableFuture CompletionException ExecutionException)))
 
 (defn- ->Authenticator
   [v]
@@ -29,15 +29,6 @@
         (proxy [Authenticator] []
           (getPasswordAuthentication []
             (PasswordAuthentication. user (char-array pass))))))))
-
-(defn- ->BodyHandler
-  "Returns a BodyHandler.
-
-  Always returns InputStream that are coerced in middleware.
-
-  https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpResponse.BodyHandler.html"
-  [_]
-  (HttpResponse$BodyHandlers/ofInputStream))
 
 (defn- ->BodyPublisher
   "Returns a BodyPublisher.
@@ -284,42 +275,114 @@
                       (->BodyPublisher req))
              .build)))
 
+(defn unwrap-async-exception
+  "Helper function to unwrap common async exceptions to get the root cause such as
+  an IOException."
+  [^Exception ex]
+  (if (or (instance? CompletionException ex)
+          (instance? ExecutionException ex))
+    (if-let [cause (.getCause ex)]
+      (unwrap-async-exception cause)
+      ex)
+    ex))
+
+(def retry-exceptions
+  "Common exceptions to retry requests on."
+  #{IOException})
+
+(def non-retry-exceptions
+  "Common exceptions to not retry requests on. Borrowed from Apache HttpClient's
+  `DefaultHttpRequestRetryHandler`."
+  #{InterruptedIOException UnknownHostException SSLException})
+
+(defn idempotent-request?
+  "Checks to see if the request is idempotent. It is considered idempotent if the
+  request method is one of `:get`, `:head`, or `:options`."
+  [req]
+  (contains? #{:get :head :options} (:request-method req)))
+
+(defn make-retry-handler
+  "Constructs a basic retry handler. Options are:
+
+  :retry-exceptions     => A collection of exceptions required for us to retry the request on.
+                           Defaults to `retry-exceptions`.
+  :non-retry-exceptions => A collection of exceptions to cause us to skip retrying a specific
+                           request. Defaults to `non-retry-exceptions`.
+  :max-retry-count      => The maximum number of retries before giving up. Defaults to 3."
+  [{:keys [retry-exceptions non-retry-exceptions max-retry-count]
+    :or   {retry-exceptions     retry-exceptions
+           non-retry-exceptions non-retry-exceptions
+           max-retry-count      3}}]
+  (fn [_resp ex req retry-count]
+    (and (idempotent-request? req)
+         (some #(instance? % ex) retry-exceptions)
+         (not (some #(instance? % ex) non-retry-exceptions))
+         (< retry-count max-retry-count))))
+
+(def default-retry-handler
+  "A default retry handler which will retry if there is an error with any known retriaretryble
+  exceptions while skipping non-retry exceptions. By default, this will only retry idempotent
+  requests (i.e. GET/HEAD/OPTIONS)."
+  (make-retry-handler {}))
+
+(defn request-with-retries*
+  "Makes a request retrying on failures as defined by retry-handler"
+  [http-client http-request body-handler req retry-handler retry-count]
+  (-> (.sendAsync http-client http-request body-handler)
+      (.handle
+        (reify BiFunction
+          (apply [_ resp e]
+            [resp (unwrap-async-exception e)])))
+      (.thenCompose
+        (reify Function
+          (apply [_ [resp e]]
+            (let [retry-fut (if retry-handler
+                              (retry-handler resp e req retry-count)
+                              (CompletableFuture/completedFuture false))]
+              (-> (if (instance? CompletableFuture retry-fut)
+                    ^CompletableFuture retry-fut
+                    (CompletableFuture/completedFuture retry-fut))
+                  (.thenCompose
+                    (reify Function
+                      (apply [_ retry?]
+                        (if retry?
+                          (request-with-retries* http-client http-request body-handler req retry-handler (inc retry-count))
+                          (if e
+                            (CompletableFuture/failedFuture e)
+                            (CompletableFuture/completedFuture
+                              (response-map {:request     req
+                                             :http-client http-client
+                                             :response    resp}))))))))))))))
+
 (defn request*
-  [{:keys [http-client async? as]
+  [{:keys [http-client async? retry-handler]
     :as   req} & [respond raise]]
   (let [^HttpClient http-client (if (instance? HttpClient http-client) http-client (build-http-client http-client))
-        http-request (ring-request->HttpRequest req)
-        bh (->BodyHandler as)]
-    (if-not async?
-      (let [resp (.send http-client http-request bh)]
-        (response-map
-         {:request     req
-          :http-client http-client
-          :response    resp}))
-
-      (-> (.sendAsync http-client http-request bh)
+        http-request            (ring-request->HttpRequest req)
+        retry-handler           (if (= :auto retry-handler) default-retry-handler retry-handler)
+        body-handler            (HttpResponse$BodyHandlers/ofInputStream)
+        resp-fut                (request-with-retries* http-client http-request body-handler req retry-handler 0)]
+    (if async?
+      (-> resp-fut
           (.thenApply
-           (reify Function
-             (apply [_ resp]
-               (respond
-                (response-map
-                 {:request     req
-                  :http-client http-client
-                  :response    resp})))))
+            (reify Function
+              (apply [_ resp-map]
+                (respond resp-map))))
           (.exceptionally
-           (reify Function
-             (apply [_ e]
-               (let [cause (.getCause ^Exception e)]
-                 (if (instance? ExceptionInfo cause)
-                   (raise cause)
-                   (raise e))))))))))
+            (reify Function
+              (apply [_ e]
+                (raise (unwrap-async-exception e))))))
+      (try @resp-fut
+           (catch Exception e
+             (throw (unwrap-async-exception e)))))))
+
+(def default-wrapped-request (middleware/wrap-request request*))
 
 (defn request
   [req & [respond raise]]
-  (let [wrapped (middleware/wrap-request request*)]
-    (if (:async? req)
-      (wrapped req (or respond identity) (or raise #(throw %)))
-      (wrapped req))))
+  (if (:async? req)
+    (default-wrapped-request req (or respond identity) (or raise #(throw %)))
+    (default-wrapped-request req)))
 
 (defn- configure-and-execute
   "Convenience wrapper"

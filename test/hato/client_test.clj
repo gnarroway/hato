@@ -7,10 +7,11 @@
             [cheshire.core :as json])
   (:import (java.io InputStream)
            (java.net ProxySelector CookieHandler CookieManager)
-           (java.net.http HttpClient$Redirect HttpClient$Version HttpClient)
+           (java.net.http HttpClient$Redirect HttpClient$Version HttpClient HttpTimeoutException)
            (java.time Duration)
            (javax.net.ssl SSLContext)
-           (java.util UUID)))
+           (java.util UUID)
+           (java.util.concurrent CompletableFuture)))
 
 (deftest test-build-http-client
   (testing "authenticator"
@@ -288,6 +289,105 @@
   (testing "can make an http2 request"
     (let [r (get "https://nghttp2.org/httpbin/get" {:as :json})]
       (is (= :http-2 (:version r))))))
+
+(defn slow-response
+  [call-count-atom sleep-time-ms]
+  (swap! call-count-atom inc)
+  (Thread/sleep sleep-time-ms)
+  {:status  200
+   :headers {"Content-Type" "application/json"}
+   :body    (json/generate-string {:sleep sleep-time-ms})})
+
+(defmacro exception-cause
+  "Evaluates the form, and returns the unwrapped exception."
+  [form]
+  `(try ~form
+        (catch Exception e#
+          (unwrap-async-exception e#))))
+
+(deftest ^:integration sync-retry-handlers
+  (testing "Sync non-idempotent requests are not retried"
+    (let [call-count (atom 0)]
+      (with-server (fn [_] (slow-response call-count 200))
+        (is (thrown? HttpTimeoutException (post "http://localhost:1234" {:timeout 100 :retry-handler :auto})))
+        (is (= 1 @call-count)))))
+
+  (testing "Sync requests will make 4 requests total then fail"
+    (let [call-count (atom 0)]
+      (with-server (fn [_] (slow-response call-count 200))
+        (is (thrown? HttpTimeoutException (get "http://localhost:1234" {:timeout 100 :retry-handler :auto})))
+        (is (= 4 @call-count)))))
+
+  (testing "Sync requests will make 2 requests total when second request is a success"
+    (let [call-count (atom 0)]
+      (with-server (fn [_] (if (zero? @call-count)
+                             (slow-response call-count 200)
+                             (slow-response call-count 1)))
+        (is (= 200 (:status (get "http://localhost:1234" {:timeout 100 :retry-handler :auto}))))
+        (is (= 2 @call-count)))))
+
+  (testing "Sync requests honor custom predicate-like retry handlers"
+    (let [call-count (atom 0)]
+      (with-server (fn [_] (slow-response call-count 200))
+        (is (thrown? HttpTimeoutException (get "http://localhost:1234" {:timeout       100
+                                                                        :retry-handler (fn [_resp _ex _req retry-count]
+                                                                                         (< retry-count 9))})))
+        (is (= 10 @call-count)))))
+
+  (testing "Sync requests honor custom retry handlers that return a CompletableFuture"
+    (let [call-count (atom 0)]
+      (with-server (fn [_] (slow-response call-count 200))
+        (is (thrown? HttpTimeoutException (get "http://localhost:1234"
+                                               {:timeout       100
+                                                :retry-handler (fn [_resp _ex _req retry-count]
+                                                                 (CompletableFuture/completedFuture (< retry-count 1)))})))
+        (is (= 2 @call-count))))))
+
+(deftest ^:integration async-retry-handlers
+  (testing "Async non-idempotent requests are not retried"
+    (let [call-count (atom 0)]
+      (with-server (fn [_] (slow-response call-count 200))
+        (is (instance? HttpTimeoutException (exception-cause @(post "http://localhost:1234" {:async?        true
+                                                                                             :timeout       100
+                                                                                             :retry-handler :auto}))))
+        (is (= 1 @call-count)))))
+
+  (testing "Async requests will make 4 requests total then fail"
+    (let [call-count (atom 0)]
+      (with-server (fn [_] (slow-response call-count 200))
+        (is (instance? HttpTimeoutException (exception-cause @(get "http://localhost:1234" {:async?        true
+                                                                                            :timeout       100
+                                                                                            :retry-handler :auto}))))
+        (is (= 4 @call-count)))))
+
+  (testing "Async requests will make 2 requests total when second request is a success"
+    (let [call-count (atom 0)]
+      (with-server (fn [_] (if (zero? @call-count)
+                             (slow-response call-count 200)
+                             (slow-response call-count 1)))
+        (is (= 200 (:status @(get "http://localhost:1234" {:async?        true
+                                                           :timeout       100
+                                                           :retry-handler :auto}))))
+        (is (= 2 @call-count)))))
+
+  (testing "Async requests honor custom predicate-like retry handlers"
+    (let [call-count (atom 0)]
+      (with-server (fn [_] (slow-response call-count 200))
+        (is (instance? HttpTimeoutException (exception-cause @(get "http://localhost:1234"
+                                                                   {:timeout       100
+                                                                    :retry-handler (fn [_resp _ex _req retry-count]
+                                                                                     (< retry-count 9))}))))
+        (is (= 10 @call-count)))))
+
+  (testing "Async requests honor custom retry handlers that return a CompletableFuture"
+    (let [call-count (atom 0)]
+      (with-server (fn [_] (slow-response call-count 200))
+        (is (instance? HttpTimeoutException (exception-cause
+                                              @(get "http://localhost:1234"
+                                                    {:timeout       100
+                                                     :retry-handler (fn [_resp _ex _req retry-count]
+                                                                      (CompletableFuture/completedFuture (< retry-count 1)))}))))
+        (is (= 2 @call-count))))))
 
 (comment
   (run-tests))
