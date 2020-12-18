@@ -210,6 +210,19 @@ request and returns a response. Convenience wrappers are provided for the http v
   - `:http-1.1` prefer HTTP/1.1
   - `:http-2` (default) tries to upgrade to HTTP/2, falling back to HTTP/1.1
 
+`retry-handler` Sets an optional retry handler which can be used for retrying requests and implementing more complex
+  retry strategies such as exponential backoff, retrying on 503s, etc. No retries will be attempted by default. `:auto`
+  may be supplied which will retry idempotent requests up to 3 times on `IOException` while skipping some other 
+  exceptions such as `InterruptedIOException`, `UnknownHostException`, or `SSLException`.
+
+  A retry handler may also be a simple function that receives the following arguments:
+  
+  response    => The response (nil when ex is present)
+  ex          => The exception (nil when response is present)
+  req         => The original request
+  retry-count => The current retry iteration (starts at 0)
+
+  The function should return a boolean or a `CompletableFuture` that resolves to a boolean (useful for backoffs/sleep).
 
 ## Usage examples
 
@@ -410,13 +423,13 @@ To send a multipart request, `:multipart` may be supplied as a sequence of maps 
 the `:body` of the request with an `InputStream` of the supplied parts.
 
 ```clojure
-(hc/get "http://moo.com"
-        {:multipart [{:name "title" :content "My Awesome Picture"}
-                     {:name "Content/type" :content "image/jpeg"}
-                     {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
-                     {:name "file" :content (io/file ".test-data")}
-                     {:name "data" :content (.getBytes "hi" "UTF-8") :content-type "text/plain" :file-name "data.txt"}
-                     {:name "jsonParam" :content (io/file ".test-data") :content-type "application/json" :file-name "data.json"}]})
+(hc/post "http://moo.com"
+         {:multipart [{:name "title" :content "My Awesome Picture"}
+                      {:name "Content/type" :content "image/jpeg"}
+                      {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
+                      {:name "file" :content (io/file ".test-data")}
+                      {:name "data" :content (.getBytes "hi" "UTF-8") :content-type "text/plain" :file-name "data.txt"}
+                      {:name "jsonParam" :content (io/file ".test-data") :content-type "application/json" :file-name "data.json"}]})
 ```
 
 
