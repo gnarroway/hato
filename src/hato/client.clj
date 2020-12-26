@@ -316,7 +316,8 @@
 
 (defn request
   [req & [respond raise]]
-  (let [wrapped (middleware/wrap-request request*)]
+  (let [middleware (or (:middleware req) middleware/default-middleware)
+        wrapped (middleware/wrap-request request* middleware)]
     (if (:async? req)
       (wrapped req (or respond identity) (or raise #(throw %)))
       (wrapped req))))

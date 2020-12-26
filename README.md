@@ -37,7 +37,7 @@ Require it to get started and make a request:
 
 (ns my.app
   (:require [hato.client :as hc]))
-  
+
   (hc/get "https://httpbin.org/get")
   ; =>
   ; {:request-time 112
@@ -50,7 +50,7 @@ Require it to get started and make a request:
 
 ### Building a client
 
-Generally, you want to make a reusable client first. This will give you nice things like 
+Generally, you want to make a reusable client first. This will give you nice things like
 persistent connections and connection pooling.
 
 This can be done with `build-http-client`:
@@ -76,8 +76,8 @@ This can be done with `build-http-client`:
 `cookie-handler` a [`java.net.CookieHandler`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/CookieHandler.html)
   if you need full control of your cookies. See `cookie-policy` for a more convenient option.
 
-`cookie-policy` Determines whether to accept cookies. The `cookie-handler` option will take precedence if it is set. 
-  If an invalid option is provided, a CookieManager with the default policy (original-server) 
+`cookie-policy` Determines whether to accept cookies. The `cookie-handler` option will take precedence if it is set.
+  If an invalid option is provided, a CookieManager with the default policy (original-server)
   will be created. Valid options:
 
  - `:none` Accepts no cookies
@@ -90,16 +90,16 @@ This can be done with `build-http-client`:
 `redirect-policy` Sets the redirect policy.
 
   - `:never` (default) Never follow redirects.
-  - `:normal` Always redirect, except from HTTPS URLs to HTTP URLs. 
+  - `:normal` Always redirect, except from HTTPS URLs to HTTP URLs.
   - `:always` Always redirect
 
 `priority` an integer between 1 and 256 (both inclusive) for HTTP/2 requests
 
 `proxy` Sets a proxy selector. If not set, uses the default system-wide ProxySelector,
-  which can be configured by Java opts such as `-Dhttp.proxyHost=somehost` and `-Dhttp.proxyPort=80` 
+  which can be configured by Java opts such as `-Dhttp.proxyHost=somehost` and `-Dhttp.proxyPort=80`
   (see [all options](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/doc-files/net-properties.html#Proxies)).
   Also accepts:
-  
+
   - `:no-proxy` to explicitly disable the default behavior, implying a direct connection; or
   - a [`java.net.ProxySelector`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/net/ProxySelector.html)
 
@@ -131,35 +131,35 @@ request and returns a response. Convenience wrappers are provided for the http v
 
 #### request options
 
-`method`Lowercase keyword corresponding to a HTTP request method, such as :get or :post. 
+`method`Lowercase keyword corresponding to a HTTP request method, such as :get or :post.
 
 `url` An absolute url to the requested resource (e.g. `"http://moo.com/api/1"`).
- 
-`accept` Sets the `accept` header. a keyword (e.g. `:json`, for any application/* type) or string (e.g. `"text/html"`) for anything else. 
-  
+
+`accept` Sets the `accept` header. a keyword (e.g. `:json`, for any application/* type) or string (e.g. `"text/html"`) for anything else.
+
 `accept-encoding` List of string/keywords (e.g. `[:gzip]`). By default, "gzip, deflate" will be concatenated
   unless `decompress-body?` is false.
 
-`content-type` a keyword (e.g. `:json`, for any application/* type) or string (e.g. "text/html") for anything else. 
+`content-type` a keyword (e.g. `:json`, for any application/* type) or string (e.g. "text/html") for anything else.
   Sets the appropriate header.
-  
-`body` the body of the request. This should be a string, byte array, input stream, 
+
+`body` the body of the request. This should be a string, byte array, input stream,
   or a [`java.net.http.HttpRequest$BodyPublisher`](https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpRequest.BodyPublisher.html).
   To send a clojure map as json (or some other format), use the `form-params` option with the appropriate `content-type`.
-  
+
 `as` Return response body in a certain format. Valid options:
 
   - Return an object type: `:string` (default), `:byte-array`, `:stream`,
-  - `:auto`, to automatically coerce response body based on the response (e.g. `content-type`). 
+  - `:auto`, to automatically coerce response body based on the response (e.g. `content-type`).
     This is an alpha feature and the implementation may change.
   - Coerce response body with certain format: `:json`, `:json-string-keys`,
   `:clojure`, `:transit+json`, `:transit+msgpack`. JSON and transit
   coercion require optional dependencies [cheshire](https://github.com/dakrone/cheshire) (5.9.0 or later) and
   [com.cognitect/transit-clj](https://github.com/cognitect/transit-clj) to be installed, respectively.
 
-`coerce` Determine which status codes to coerce response bodies. `:unexceptional` (default), `:always`, `:exceptional`. 
+`coerce` Determine which status codes to coerce response bodies. `:unexceptional` (default), `:always`, `:exceptional`.
   This presently only has an effect for json coercions.
-  
+
 `query-params` A map of options to turn into a query string. See usage examples for details.
 
 `form-params` A map of options that will be sent as the body, depending on the `content-type` option. For example,
@@ -167,20 +167,20 @@ request and returns a response. Convenience wrappers are provided for the http v
   See usage examples for details.
 
 `multi-param-style` Decides how to represent array values when converting `query-params` into a query string. Accepts:
-  
+
   - When unset (default), a repeating parameter `a=1&a=2&a=3`
   - `:array`, a repeating param with array suffix: `a[]=1&a[]=2&a[]=3`
   - `:index`, a repeating param with array suffix and index: `a[0]=1&a[1]=2&a[2]=3`
-  
-`multipart` A sequence of maps with the following keys: 
+
+`multipart` A sequence of maps with the following keys:
 
   - `:name` The name of the param
   - `:part-name` To preserve the order of entities, `:name` will be used as the part name unless `:part-name` is specified
   - `:content` The part's data. May be a `String`, `InputStream`, `Reader`, `File`, `char-array`, or a `byte-array`
   - `:file-name` The part's file name. If the `:content` is a `File`, it will use `.getName` by default but may be overridden.
   - `:content-type` The part's content type. By default, if `:content` is a `String` it will be `text/plain; charset=UTF-8`
-                    and if `:content` is a `File` it will attempt to guess the best content type or fallback to 
-                    `application/octet-stream`. 
+                    and if `:content` is a `File` it will attempt to guess the best content type or fallback to
+                    `application/octet-stream`.
 
 `headers` Map of lower case strings to header values, concatenated with ',' when multiple values for a key.
   This is presently a slight incompatibility with clj-http, which accepts keyword keys and list values.
@@ -192,16 +192,16 @@ request and returns a response. Convenience wrappers are provided for the http v
 
 `decompress-body?` By default, sets request header to accept "gzip, deflate" encoding, and decompresses the response.
   Set to `false` to turn off this behaviour.
- 
+
 `throw-exceptions?` By default, the client will throw exceptions for exceptional response statuses. Set this to
   `false` to return the response without throwing.
-  
+
 `async?` Boolean, defaults to false. See below section on async requests.
- 
+
 `http-client` An `HttpClient` created by `build-http-client` or other means. For single-use clients, it also
   accepts a map of the options accepted by `build-http-client`.
 
-`expect-continue` Requests the server to acknowledge the request before sending the body. This is disabled by default. 
+`expect-continue` Requests the server to acknowledge the request before sending the body. This is disabled by default.
 
 `timeout` Timeout to receiving a response, in milliseconds (default: unlimited).
 
@@ -218,13 +218,13 @@ request and returns a response. Convenience wrappers are provided for the http v
 By default, hato performs synchronous requests and directly returns a response map.
 
 By providing `async?` option to the request, the request will be performed asynchronously, returning
-a [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) 
-of the response map. This can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold), 
+a [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html)
+of the response map. This can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold),
 to give you promise chains etc.
 
 Alternatively, callbacks can be used by passing in `respond` and `raise` functions, in which case
-the [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html) 
-returned can be used to indicate when processing has completed. 
+the [CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html)
+returned can be used to indicate when processing has completed.
 
 ```clojure
 ; A standard synchronous request
@@ -243,8 +243,8 @@ returned can be used to indicate when processing has completed.
 
 ; Pass in a callback
 (hc/get "https://httpbin.org/get"
-       { :async? true } 
-       (fn [resp] (println "Got status" (:status resp))) 
+       { :async? true }
+       (fn [resp] (println "Got status" (:status resp)))
        identity)
 ; =>
 ; #object[jdk.internal.net.http.common.MinimalFuture...
@@ -255,7 +255,7 @@ returned can be used to indicate when processing has completed.
 ; true
 
 ; Exceptional status codes by default will call raise with an ex-info containing the response map.
-; This means we can use ex-data to get the data back out. 
+; This means we can use ex-data to get the data back out.
 @(hc/get "https://httpbin.org/status/400" {:async? true} identity #(-> % ex-data :status))
 ; =>
 ; 400
@@ -361,10 +361,10 @@ Client authentication can be done by passing in an SSLContext:
 (hc/get "https://secure-url.com" {:http-client {:ssl-context SomeSSLContext}})
 
 ; Pass in your credentials
-(hc/get "https://secure-url.com" {:http-client {:ssl-context {:keystore (io/resource "somepath.p12") 
+(hc/get "https://secure-url.com" {:http-client {:ssl-context {:keystore (io/resource "somepath.p12")
                                                               :keystore-pass "password"
                                                               :trust-store (io/resource "cacerts.p12"
-                                                              :trust-store-pass "another-password")}}})                                             
+                                                              :trust-store-pass "another-password")}}})
 ```
 If either `:keystore` or `:trust-store` are not provided, the respective system default will be used.
 
@@ -385,8 +385,8 @@ that the path should be on the filesystem rather than in the jar resources):
 By default, hato does not follow redirects. To change this behaviour, use the `redirect-policy` option.
 
 Implementation notes from the [docs](https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpClient.Redirect.html):
-> When automatic redirection occurs, the request method of the redirected request may be modified 
-depending on the specific 30X status code, as specified in [RFC 7231](https://tools.ietf.org/html/rfc7231). 
+> When automatic redirection occurs, the request method of the redirected request may be modified
+depending on the specific 30X status code, as specified in [RFC 7231](https://tools.ietf.org/html/rfc7231).
 In addition, the 301 and 302 status codes cause a POST request to be converted to a GET in the redirected request.
 
 ```clojure
@@ -400,12 +400,12 @@ In addition, the 301 and 302 status codes cause a POST request to be converted t
 The Java HttpClient does not provide a direct option for max redirects. By default, it is 5.
 To change this, set the java option to e.g. `-Djdk.httpclient.redirects.retrylimit=10`.
 
-The client does not throw an exception if the retry limit has been breached. Instead, 
+The client does not throw an exception if the retry limit has been breached. Instead,
 it will return a response with the redirect status code (30x) and empty body.
 
 ### Multipart Requests
 
-To send a multipart request, `:multipart` may be supplied as a sequence of maps as described in 
+To send a multipart request, `:multipart` may be supplied as a sequence of maps as described in
 [request options](#request-options). This will add the appropriate Content-Type header as well as replace
 the `:body` of the request with an `InputStream` of the supplied parts.
 
@@ -431,7 +431,7 @@ supply different middleware by using `wrap-request` yourself:
 
 ; With convenience method
 (hc/get "https://httpbin.org/get")
-  
+
 ; Let's write an access log middleware
 
 ; Define a new middleware
@@ -439,7 +439,7 @@ supply different middleware by using `wrap-request` yourself:
     [resp]
     (println :access-log (:uri resp) (:status resp) (:request-time resp))
     resp)
-  
+
 (defn wrap-log
   [client]
   (fn
@@ -457,35 +457,26 @@ supply different middleware by using `wrap-request` yourself:
 ; - Before wrap-exceptions so that exceptional responses have not yet caused an exception to be thrown
 (def my-middleware (concat [(first hm/default-middleware) wrap-log] (drop 1 hm/default-middleware)))
 
-; Create your own request wrapper with the new middleware
-(def my-request (hm/wrap-request hc/request* my-middleware))
-
-; Add your own convenience methods if you desire
-(defn my-get
-  [url opts]
-  (-> (my-request (merge opts {:url url :method :get}))
-      :body))
-
 ; Now it logs
-(my-request {:url "https://httpbin.org/get" :method :get})
+(request {:url "https://httpbin.org/get" :method :get :middleware my-middleware})
 ; :access-log https://httpbin.org/get 200 1069
 ; => Returns response map
 
-(my-request {:url "https://httpbin.org/status/404" :method :get})
+(request {:url "https://httpbin.org/status/404" :method :get :middleware my-middleware})
 ; :access-log https://httpbin.org/status/404 404 1924
 ; ...Throws some ExceptionInfo
 
-(my-get "https://httpbin.org/get" {})
+(get "https://httpbin.org/get" {:middleware my-middleware})
 ; :access-log https://httpbin.org/get 200 1069
 ; => Returns string body
-```     
+```
 
 ### WebSockets
 
 The simplest way to get started is with the `websocket` function:
 
-```clojure 
-(require '[hato.websocket :as ws]) 
+```clojure
+(require '[hato.websocket :as ws])
 
 (let [ws @(ws/websocket "ws://echo.websocket.org"
                         {:on-message (fn [ws msg last?]
@@ -495,21 +486,21 @@ The simplest way to get started is with the `websocket` function:
   (ws/send! ws "Hello World!")
   (Thread/sleep 1000)
   (ws/close! ws))
-```  
+```
 
-By default, hato WebSocket functions are asynchronous and most return a 
-[CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html). This 
+By default, hato WebSocket functions are asynchronous and most return a
+[CompletableFuture](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/CompletableFuture.html). This
 can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold), to give you promise chains etc.
 
-```clojure  
-(require '[hato.websocket :as ws]) 
-(require '[manifold.deferred :as d]) 
+```clojure
+(require '[hato.websocket :as ws])
+(require '[manifold.deferred :as d])
 
 (-> (ws/websocket "ws://echo.websocket.org"
                   {:on-message (fn [ws msg last?]
                                  (println "Received message:" msg))
                    :on-close   (fn [ws status reason]
-                                 (println "WebSocket closed!"))}) 
+                                 (println "WebSocket closed!"))})
     (d/chain #(ws/send! % "Hello")
              #(ws/send! % "World!")
              #(ws/close! %))
@@ -529,14 +520,14 @@ can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold), to give
   - `:subprotocols` Sets a request for the given subprotocols.
   - `:listener` A WebSocket listener. If a `WebSocket$Listener` is provided, it will be used directly.
   Otherwise one will be created from any handlers (`on-<event>`) passed into the options map.
-  
+
   - `:on-open` Called when a `WebSocket` has been connected. Called with the WebSocket instance.
-  - `:on-message` A textual/binary data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message. 
+  - `:on-message` A textual/binary data has been received. Called with the WebSocket instance, the data, and whether this invocation completes the message.
   - `:on-ping` A Ping message has been received. Called with the WebSocket instance and the ping message.
-  - `:on-pong` A Pong message has been received. Called with the WebSocket instance and the pong message. 
+  - `:on-pong` A Pong message has been received. Called with the WebSocket instance and the pong message.
   - `:on-close` Receives a Close message indicating the WebSocket's input has been closed. Called with the WebSocket instance, the status code, and the reason.
   - `:on-error` An error has occurred. Called with the WebSocket instance and the error.
-    
+
 
 ### Debugging
 

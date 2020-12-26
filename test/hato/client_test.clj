@@ -289,5 +289,11 @@
     (let [r (get "https://nghttp2.org/httpbin/get" {:as :json})]
       (is (= :http-2 (:version r))))))
 
+(deftest custom-middleware
+  (let [r (get "" {:middleware [(fn [client]
+                                  (fn [req]
+                                    ::response))]})]
+    (is (= ::response r))))
+
 (comment
   (run-tests))

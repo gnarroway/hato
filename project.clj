@@ -1,3 +1,4 @@
+
 (defproject hato "0.7.2"
   :description "An HTTP client for Clojure, wrapping JDK 11's HttpClient."
   :url "https://github.com/gnarroway/hato"
