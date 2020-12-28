@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [Unreleased]
+### Added
+- Option to pass in custom middleware via request map so built in convenience wrappers can use it - thanks @csgero (#24)
+
 ## [0.7.2]
 ### Fixed
 - Remove reflective calls (#22) - thanks @jimpil
