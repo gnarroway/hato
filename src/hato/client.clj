@@ -30,15 +30,6 @@
           (getPasswordAuthentication []
             (PasswordAuthentication. user (char-array pass))))))))
 
-(defn- ->BodyHandler
-  "Returns a BodyHandler.
-
-  Always returns InputStream that are coerced in middleware.
-
-  https://docs.oracle.com/en/java/javase/11/docs/api/java.net.http/java/net/http/HttpResponse.BodyHandler.html"
-  [_]
-  (HttpResponse$BodyHandlers/ofInputStream))
-
 (defn- ->BodyPublisher
   "Returns a BodyPublisher.
 
@@ -285,11 +276,11 @@
              .build)))
 
 (defn request*
-  [{:keys [http-client async? as]
+  [{:keys [http-client async?]
     :as   req} & [respond raise]]
   (let [^HttpClient http-client (if (instance? HttpClient http-client) http-client (build-http-client http-client))
         http-request (ring-request->HttpRequest req)
-        bh (->BodyHandler as)]
+        bh (HttpResponse$BodyHandlers/ofInputStream)]
     (if-not async?
       (let [resp (.send http-client http-request bh)]
         (response-map
