@@ -27,10 +27,10 @@
 
 (defmulti decode
   "Extensible content-type based decoder."
-  :content-type)
+  (fn [resp _] (:content-type resp)))
 
 (defmethod decode :default
-  [{:keys [content-type] :as resp}]
+  [{:keys [content-type] :as resp} _]
   ; Throw for types that we would support if dependencies existed.
   (when (#{:application/json :application/transit+json :application/transit+msgpack} content-type)
     (throw (IllegalArgumentException.
@@ -44,34 +44,34 @@
     (:body resp)))
 
 (defmethod decode :application/edn
-  [resp]
+  [resp _]
   (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")]
     (edn/read-string (slurp (:body resp) :encoding charset))))
 
 (when json-enabled?
   (let [decode-fn (ns-resolve 'cheshire.core 'decode-strict)]
     (defmethod decode :application/json
-      [resp]
+      [resp _]
       (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")]
         (decode-fn (slurp (:body resp) :encoding charset) true)))))
 
 (when transit-enabled?
   (let [reader (ns-resolve 'cognitect.transit 'reader)
         read (ns-resolve 'cognitect.transit 'read)
-        parse-transit (fn [type resp]
+        parse-transit (fn [type resp opts]
                         (with-open [^InputStream bs (:body resp)]
                           (when (pos? (.available bs))
-                            (read (reader bs type)))))]
+                            (read (reader bs type (-> opts :transit-opts :decode))))))]
 
-    (defmethod decode :application/transit+json [resp]
-      (parse-transit :json resp))
+    (defmethod decode :application/transit+json [resp opts]
+      (parse-transit :json resp opts))
 
-    (defmethod decode :application/transit+msgpack [resp]
-      (parse-transit :msgpack resp))))
+    (defmethod decode :application/transit+msgpack [resp opts]
+      (parse-transit :msgpack resp opts))))
 
-(defrecord DefaultDecoder []
+(defrecord DefaultDecoder [options]
   Decoder
-  (-decode [_ response] (decode response)))
+  (-decode [_ response] (decode response options)))
 
 (comment
   (def d (DefaultDecoder.))

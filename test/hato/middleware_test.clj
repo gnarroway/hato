@@ -1,6 +1,7 @@
 (ns hato.middleware-test
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
+            [cognitect.transit :as transit]
             [hato.middleware :refer :all])
   (:import (java.util.zip
             GZIPOutputStream)
@@ -132,13 +133,13 @@
   (with-open [out (ByteArrayOutputStream.)
               gzip (GZIPOutputStream. out)]
     (do
-      (.write gzip bs)
+      (.write ^GZIPOutputStream gzip #^bytes bs)
       (.finish gzip)
       (.toByteArray out))))
 
 (defn- string->stream
   [s]
-  (clojure.java.io/input-stream (.getBytes s)))
+  (clojure.java.io/input-stream (.getBytes ^String s)))
 
 (deftest test-wrap-decompression
   (testing "with no decompress-body option"
@@ -154,6 +155,26 @@
   (testing "with decompress-body option"
     (let [r ((wrap-decompression identity) {:decompress-body false})]
       (is (not (contains? r :headers))))))
+
+(defrecord Point [x y])
+
+(def write-point
+  "Write a point in Transit format."
+  (transit/write-handler
+   (constantly "point")
+   (fn [point] [(:x point) (:y point)])
+   (constantly nil)))
+
+(def read-point
+  "Read a point in Transit format."
+  (transit/read-handler
+   (fn [[x y]]
+     (->Point x y))))
+
+(def transit-opts
+  "Transit read and write options."
+  {:encode {:handlers {Point write-point}}
+   :decode {:handlers {"point" read-point}}})
 
 (deftest test-wrap-output-coercion
   (testing "coerces depending on status and :coerce option"
@@ -200,12 +221,23 @@
     (are [expected as] (= expected (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "[\"^ \",\"~:a\",[1,2]]")})) {:as as}) :body))
       {:a [1 2]} :transit+json))
 
+  (testing "transit coercions with transit-opts"
+    (are [as] (= {:point (Point. 1 2)} (-> ((wrap-output-coercion (constantly {:status 200
+                                                                               :headers {"content-type" "application/transit+json"}
+                                                                               :body   (string->stream "[\"^ \",\"~:point\",[\"~#point\",[1,2]]]")}))
+                                            {:as           as
+                                             :transit-opts transit-opts}) :body))
+      :transit+json
+      :auto))
+
   (testing "string coercions"
     (is (= "{:a 1}" (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "{:a 1}")})) {:as :string}) :body))))
 
   (testing "byte-array coercions"
     (let [bs (string->stream "{:a 1}")]
-      (is (= (Class/forName "[B") (.getClass (-> ((wrap-output-coercion (constantly {:status 200 :body bs})) {:as :byte-array}) :body))))
+      (is (= (Class/forName "[B")
+             (let [#^bytes body (-> ((wrap-output-coercion (constantly {:status 200 :body bs})) {:as :byte-array}) :body)]
+               (.getClass body))))
       (is (= bs (-> ((wrap-output-coercion (constantly {:status 200 :body bs})) {:as :stream}) :body))))))
 
 (deftest test-wrap-exceptions
@@ -284,7 +316,14 @@
 
   (testing "coercing to transit+json"
     (let [r ((wrap-form-params identity) {:form-params {:moo "cow boy!"} :request-method :post :content-type :transit+json})]
-      (is (= "[\"^ \",\"~:moo\",\"cow boy!\"]" (String. ^bytes (:body r)))))))
+      (is (= "[\"^ \",\"~:moo\",\"cow boy!\"]" (String. ^bytes (:body r))))))
+
+  (testing "transit with transit-opts"
+    (let [r ((wrap-form-params identity) {:form-params    {:point (Point. 1 2)}
+                                          :request-method :post
+                                          :content-type   :transit+json
+                                          :transit-opts   transit-opts})]
+      (is (= "[\"^ \",\"~:point\",[\"~#point\",[1,2]]]" (String. ^bytes (:body r)))))))
 
 (deftest test-wrap-method
   (testing "when no method option"
@@ -321,6 +360,3 @@
       (is (instance? InputStream (:body r)))
       (is (re-matches #"^multipart/form-data; boundary=[a-zA-Z0-9_]+$" (-> r :headers (get "content-type"))))
       (is (nil? (:multipart r))))))
-
-(comment
-  (run-tests))

@@ -40,24 +40,6 @@
     true
     (catch Throwable _ false)))
 
-(defn transit-opts-by-type
-  "Returns the Transit options by type."
-  [type opts]
-  {:pre [transit-enabled?]}
-  (cond
-    (empty? opts)
-    opts
-    (contains? opts type)
-    (clojure.core/get opts type)
-    :else
-    {}))
-
-(def transit-read-opts
-  (partial transit-opts-by-type :decode))
-
-(def transit-write-opts
-  (partial transit-opts-by-type :encode))
-
 (defn ^:dynamic parse-transit
   "Resolve and apply Transit's JSON/MessagePack decoding."
   [^InputStream in type & [opts]]
@@ -65,7 +47,7 @@
   (when (pos? (.available in))
     (let [reader (ns-resolve 'cognitect.transit 'reader)
           read (ns-resolve 'cognitect.transit 'read)]
-      (read (reader in type (transit-read-opts opts))))))
+      (read (reader in type (:decode opts))))))
 
 (defn ^:dynamic transit-encode
   "Resolve and apply Transit's JSON/MessagePack encoding."
@@ -74,7 +56,7 @@
   (let [output (ByteArrayOutputStream.)
         writer (ns-resolve 'cognitect.transit 'writer)
         write (ns-resolve 'cognitect.transit 'write)]
-    (write (writer output type (transit-write-opts opts)) out)
+    (write (writer output type (:encode opts)) out)
     (.toByteArray output)))
 
 (defn ^:dynamic json-encode
@@ -232,14 +214,14 @@
 (defmethod coerce-response-body :transit+msgpack [req resp]
   (coerce-transit-body req resp :msgpack))
 
-(def default-decoder (DefaultDecoder.))
-
-(defn- decode-response
-  [decoder resp]
-  (assoc resp :body (conversion/-decode decoder resp)))
+(def default-decoder (DefaultDecoder. nil))
 
 (defmethod coerce-response-body :auto [req resp]
-  (decode-response (or (:decoder req) default-decoder) resp))
+  (let [decoder (or (:decoder req)
+                    (if (:transit-opts req)
+                      (DefaultDecoder. req)
+                      default-decoder))]
+    (assoc resp :body (conversion/-decode decoder resp))))
 
 (defmethod coerce-response-body :byte-array [_ resp]
   (let [ba (with-open [^InputStream xin (:body resp)
