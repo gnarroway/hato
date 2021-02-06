@@ -4,8 +4,9 @@
             [hato.client :refer :all]
             [clojure.java.io :as io]
             [org.httpkit.server :as http-kit]
-            [cheshire.core :as json])
-  (:import (java.io InputStream)
+            [cheshire.core :as json]
+            [cognitect.transit :as transit])
+  (:import (java.io InputStream ByteArrayOutputStream)
            (java.net ProxySelector CookieHandler CookieManager)
            (java.net.http HttpClient$Redirect HttpClient$Version HttpClient)
            (java.time Duration)
@@ -192,7 +193,29 @@
 
       (let [b (:body (get "http://localhost:1234" {:as :json}))]
         (is (coll? b))
-        (is (= 1000 (count b)))))))
+        (is (= 1000 (count b))))))
+
+  (doseq [content-type ["msgpack" "json"]]
+    (testing (str "decode " content-type)
+      (let [body {:a [1 2]}]
+        (with-server (fn app [_]
+                       {:status  200
+                        :headers {"Content-Type" (str "application/transit+" content-type)}
+                        :body    (let [output (ByteArrayOutputStream.)]
+                                   (transit/write (transit/writer output (keyword content-type)) body)
+                                   (clojure.java.io/input-stream (.toByteArray output)))})
+
+          (let [r (get "http://localhost:1234" {:as :auto})]
+            (is (= body (:body r)))))))
+
+    (testing (str "empty stream when decoding " content-type)
+      (with-server (fn app [_]
+                     {:status  200
+                      :headers {"Content-Type" (str "application/transit+" content-type)}
+                      :body    nil})
+
+        (let [r (get "http://localhost:1234" {:as :auto})]
+          (is (nil? (:body r))))))))
 
 (deftest ^:integration test-auth
   (testing "authenticator basic auth (non-preemptive) via client option"
@@ -294,6 +317,3 @@
                                   (fn [req]
                                     ::response))]})]
     (is (= ::response r))))
-
-(comment
-  (run-tests))

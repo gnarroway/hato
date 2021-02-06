@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file. This change
 ### Added
 - Option to pass in custom middleware via request map so built in convenience wrappers can use it - thanks @csgero (#24)
 
+### Fixed
+- transit does not decode in JDK11 because `.available` is always 0 (#25)
+
 ## [0.7.2]
 ### Fixed
 - Remove reflective calls (#22) - thanks @jimpil

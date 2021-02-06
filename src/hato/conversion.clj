@@ -60,8 +60,13 @@
         read (ns-resolve 'cognitect.transit 'read)
         parse-transit (fn [type resp opts]
                         (with-open [^InputStream bs (:body resp)]
-                          (when (pos? (.available bs))
-                            (read (reader bs type (-> opts :transit-opts :decode))))))]
+                          (try
+                            (read (reader bs type (-> opts :transit-opts :decode)))
+                            (catch RuntimeException _
+                              ; https://github.com/gnarroway/hato/issues/25
+                              ; explicitly handle case where stream is empty
+                              ; since .available seems to always return 0 on JDK11 (but not 15).
+                              nil))))]
 
     (defmethod decode :application/transit+json [resp opts]
       (parse-transit :json resp opts))

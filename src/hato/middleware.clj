@@ -44,10 +44,15 @@
   "Resolve and apply Transit's JSON/MessagePack decoding."
   [^InputStream in type & [opts]]
   {:pre [transit-enabled?]}
-  (when (pos? (.available in))
-    (let [reader (ns-resolve 'cognitect.transit 'reader)
-          read (ns-resolve 'cognitect.transit 'read)]
-      (read (reader in type (:decode opts))))))
+  (let [reader (ns-resolve 'cognitect.transit 'reader)
+        read (ns-resolve 'cognitect.transit 'read)]
+    (try
+      (read (reader in type (:decode opts)))
+      (catch RuntimeException _
+        ; https://github.com/gnarroway/hato/issues/25
+        ; explicitly handle case where stream is empty
+        ; since .available seems to always return 0 on JDK11 (but not 15).
+        nil))))
 
 (defn ^:dynamic transit-encode
   "Resolve and apply Transit's JSON/MessagePack encoding."
