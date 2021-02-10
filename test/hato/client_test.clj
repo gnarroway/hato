@@ -5,13 +5,22 @@
             [clojure.java.io :as io]
             [org.httpkit.server :as http-kit]
             [cheshire.core :as json]
-            [cognitect.transit :as transit])
+            [cognitect.transit :as transit]
+            [ring.middleware.multipart-params])
   (:import (java.io InputStream ByteArrayOutputStream)
            (java.net ProxySelector CookieHandler CookieManager)
            (java.net.http HttpClient$Redirect HttpClient$Version HttpClient)
            (java.time Duration)
            (javax.net.ssl SSLContext)
            (java.util UUID)))
+
+(defmacro with-server
+  "Spins up a local HTTP server with http-kit."
+  [handler & body]
+  `(let [s# (http-kit/run-server ~handler {:port 1234})]
+     (try ~@body
+          (finally
+            (s# :timeout 100)))))
 
 (deftest test-build-http-client
   (testing "authenticator"
@@ -101,21 +110,28 @@
       head
       options)))
 
-; TODO: Httpbin is being flaky so commenting until we replace it with our own server
-#_(deftest ^:integration test-multipart-response
-  (testing "basic get request returns response map"
-    (let [uuid (.toString (UUID/randomUUID))
-          _ (spit (io/file ".test-data") uuid)
-          r (post "https://httpbin.org/post" {:as        :json
-                                              :multipart [{:name "title" :content "My Awesome Picture"}
-                                                          {:name "Content/type" :content "image/jpeg"}
-                                                          {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
-                                                          {:name "file" :content (io/file ".test-data")}]})]
+(deftest ^:integration test-multipart-response
+  (testing "basic post request returns response map"
+    (with-server (ring.middleware.multipart-params/wrap-multipart-params
+                  (fn app [req]
+                    {:status  200
+                     :headers {"Content-Type" "application/json"}
+                     :body (let [params (clojure.walk/keywordize-keys (:multipart-params req))]
+                             (json/generate-string {:files {:file (-> params :file :tempfile slurp)}
+                                                    :form  (select-keys params [:Content/type :eggplant :title])}))}))
 
-      (is (= {:files {:file uuid}
-              :form  {:Content/type "image/jpeg"
-                      :eggplant     "Eggplants"
-                      :title        "My Awesome Picture"}} (-> r :body (select-keys [:files :form])))))))
+      (let [uuid (.toString (UUID/randomUUID))
+            _ (spit (io/file ".test-data") uuid)
+            r (post "http://localhost:1234" {:as        :json
+                                             :multipart [{:name "title" :content "My Awesome Picture"}
+                                                         {:name "Content/type" :content "image/jpeg"}
+                                                         {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
+                                                         {:name "file" :content (io/file ".test-data")}]})]
+
+        (is (= {:files {:file uuid}
+                :form  {:Content/type "image/jpeg"
+                        :eggplant     "Eggplants"
+                        :title        "My Awesome Picture"}} (:body r)))))))
 
 (deftest ^:integration test-basic-response-async
   (testing "basic request returns something"
@@ -149,14 +165,6 @@
         "default callbacks throws on error")
     (is (= 400 (:status @(get "https://httpbin.org/status/400" {:async? true :throw-exceptions? false})))
         "default callbacks does not throw if :throw-exceptions? is false")))
-
-(defmacro with-server
-  "Spins up a local HTTP server with http-kit."
-  [handler & body]
-  `(let [s# (http-kit/run-server ~handler {:port 1234})]
-     (try ~@body
-          (finally
-            (s# :timeout 100)))))
 
 (deftest ^:integration test-coercions
   (testing "as default"

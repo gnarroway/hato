@@ -13,5 +13,7 @@
   :global-vars {*warn-on-reflection* true}
   :profiles {:dev {:dependencies [[org.clojure/clojure "1.10.1"]
                                   [cheshire "5.10.0"]
+                                  [ring/ring-core "1.9.0"]
+                                  [javax.servlet/servlet-api "2.5"]
                                   [com.cognitect/transit-clj "0.8.319"]
                                   [http-kit "2.3.0"]]}})

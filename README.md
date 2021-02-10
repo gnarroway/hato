@@ -410,7 +410,7 @@ To send a multipart request, `:multipart` may be supplied as a sequence of maps 
 the `:body` of the request with an `InputStream` of the supplied parts.
 
 ```clojure
-(hc/get "http://moo.com"
+(hc/post "http://moo.com"
         {:multipart [{:name "title" :content "My Awesome Picture"}
                      {:name "Content/type" :content "image/jpeg"}
                      {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
