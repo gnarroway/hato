@@ -1,8 +1,15 @@
 version: 2
 jobs:
-  build:
+  testjdk11:
     docker:
       - image: circleci/clojure:openjdk-11-lein
+    steps:
+      - checkout
+      - run: lein test
+
+  testjdk15:
+    docker:
+      - image: circleci/clojure:openjdk-15-lein-buster
     steps:
       - checkout
       - run: lein test
@@ -19,10 +26,12 @@ workflows:
   version: 2
   build-publish:
     jobs:
-      - build
+      - testjdk11
+      - testjdk15
       - publish:
           requires:
-            - build
+            - testjdk11
+            - testjdk15
           filters:
             branches:
               only: master
