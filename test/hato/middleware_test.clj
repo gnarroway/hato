@@ -149,6 +149,8 @@
     (are [response] (= "s" (-> ((wrap-decompression (constantly response)) {}) :body slurp))
       {:body (string->stream "s")}
       {:body (clojure.java.io/input-stream (gzip (.getBytes "s"))) :headers {"content-encoding" "gzip"}}
+      {:body (string->stream "s")}
+      {:body (clojure.java.io/input-stream (gzip (.getBytes "s"))) :headers {"content-encoding" "GZip"}}
                     ; TODO deflate
       ))
 

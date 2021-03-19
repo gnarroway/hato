@@ -600,7 +600,9 @@
 ;; Multimethods for Content-Encoding dispatch automatically
 ;; decompressing response bodies
 (defmulti decompress-body
-  (fn [resp] (get-in resp [:headers "content-encoding"])))
+  (fn [resp]
+    (when-let [encoding (get-in resp [:headers "content-encoding"])]
+      (str/lower-case encoding))))
 
 (defmethod decompress-body "gzip"
   [resp]
