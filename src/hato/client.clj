@@ -202,6 +202,7 @@
   `cookie-handler` a java.net.CookieHandler
   `cookie-policy` :none, :all, :original-server. cookie-handler takes precedence if specified
   `connect-timeout` in milliseconds
+  `executor` a java.util.concurrent.ThreadPoolExecutor
   `redirect-policy` :never (default), :normal, :always
   `priority` an integer between 1 and 256 inclusive for HTTP/2 requests
   `proxy` a java.net.ProxySelector or :no-proxy
@@ -212,6 +213,7 @@
            cookie-handler
            cookie-policy
            connect-timeout
+           executor
            redirect-policy
            priority
            proxy
@@ -220,6 +222,7 @@
            version]}]
   (cond-> (HttpClient/newBuilder)
     connect-timeout (.connectTimeout (Duration/ofMillis connect-timeout))
+    executor (.executor executor)
     redirect-policy (.followRedirects (->Redirect redirect-policy))
     priority (.priority priority)
     proxy (.proxy (->ProxySelector proxy))
