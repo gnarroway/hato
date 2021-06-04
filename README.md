@@ -107,7 +107,7 @@ This can be done with `build-http-client`:
 
 `ssl-context` Sets the SSLContext. If not specified, uses the default `(SSLContext/getDefault)`. Accepts:
 
-  - a map of `:keystore` `:keystore-pass` `:trust-store` `:trust-store-pass`. See client authentication examples for more details.
+  - a map of `:keystore` `:keystore-pass` `:trust-store` `:trust-store-pass`, `:insecure?`. See client authentication examples for more details.
   - an [`javax.net.ssl.SSLContext`](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/javax/net/ssl/SSLContext.html)
 
 `ssl-parameters` a `javax.net.ssl.SSLParameters`
@@ -367,6 +367,9 @@ Client authentication can be done by passing in an SSLContext:
                                                               :keystore-pass "password"
                                                               :trust-store (io/resource "cacerts.p12"
                                                               :trust-store-pass "another-password")}}})
+
+; Skip verification of the server certificates
+(hc/get "https://secure-url.com" {:http-client {:ssl-context {:insecure? true}}})
 ```
 If either `:keystore` or `:trust-store` are not provided, the respective system default will be used.
 

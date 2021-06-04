@@ -13,12 +13,13 @@
     HttpRequest$BodyPublisher
     HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest HttpClient$Builder HttpRequest$Builder)
    (java.net CookiePolicy CookieManager URI ProxySelector Authenticator PasswordAuthentication CookieHandler)
-   (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext)
-   (java.security KeyStore)
+   (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext X509TrustManager TrustManager)
+   (java.security KeyStore SecureRandom)
    (java.time Duration)
    (java.util.function Function Supplier)
    (java.io File InputStream)
-   (clojure.lang ExceptionInfo)))
+   (clojure.lang ExceptionInfo)
+   (java.security.cert X509Certificate)))
 
 (defn- ->Authenticator
   [v]
@@ -82,6 +83,11 @@
       (doto (KeyStore/getInstance store-type)
         (.load kss (char-array store-pass))))))
 
+(def insecure-tm (reify X509TrustManager
+                   (checkClientTrusted [_ _ _])
+                   (checkServerTrusted [_ _ _])
+                   (getAcceptedIssuers [_] (into-array X509Certificate []))))
+
 (defn ->SSLContext
   "Returns an SSLContext.
 
@@ -92,27 +98,31 @@
   `keystore-type` is the type of keystore to create [note: not the type of the file] (default: pkcs12)
   `trust-store` is an URL e.g. (io/resource cacerts.p12)
   `trust-store-pass` is the password for the trust store
-  `trust-store-type` is the type of trust store to create [note: not the type of the file] (default: pkcs12).
+  `trust-store-type` is the type of trust store to create [note: not the type of the file] (default: pkcs12)
+  `insecure?` if true, an insecure trust manager accepting all server certificates will be configured.
 
   If either `keystore` or `trust-store` are not provided, the respective default will be used, which can be overridden
   by java options `-Djavax.net.ssl.keyStore` and `-Djavax.net.ssl.trustStore`, respectively."
   [v]
   (if (instance? SSLContext v)
     v
-    (let [{:keys [keystore keystore-type keystore-pass trust-store trust-store-type trust-store-pass]
+    (let [{:keys [keystore keystore-type keystore-pass trust-store trust-store-type trust-store-pass insecure?]
            :or   {keystore-type "pkcs12" trust-store-type "pkcs12"}} v
 
-          ks (load-keystore keystore keystore-type keystore-pass)
-          ts (load-keystore trust-store trust-store-type trust-store-pass)
+          key-managers (when-let [ks (load-keystore keystore keystore-type keystore-pass)]
+                         (.getKeyManagers (doto (KeyManagerFactory/getInstance (KeyManagerFactory/getDefaultAlgorithm))
+                                            (.init ks (char-array keystore-pass)))))
 
-          kmf (doto (KeyManagerFactory/getInstance (KeyManagerFactory/getDefaultAlgorithm))
-                (.init ks (char-array keystore-pass)))
-
-          tmf (doto (TrustManagerFactory/getInstance (TrustManagerFactory/getDefaultAlgorithm))
-                (.init ts))]
+          trust-managers (if insecure?
+                           (into-array TrustManager [insecure-tm])
+                           (when-let [ts (load-keystore trust-store trust-store-type trust-store-pass)]
+                             (.getTrustManagers (doto (TrustManagerFactory/getInstance (TrustManagerFactory/getDefaultAlgorithm))
+                                                  (.init ts)))))]
 
       (doto (SSLContext/getInstance "TLS")
-        (.init (.getKeyManagers kmf) (.getTrustManagers tmf) nil)))))
+        (.init key-managers
+               trust-managers
+               (SecureRandom.))))))
 
 (defn- ->Version
   "Returns a HttpClient$Version.
