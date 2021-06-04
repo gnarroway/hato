@@ -87,6 +87,8 @@ This can be done with `build-http-client`:
 
 `connect-timeout` Timeout to making a connection, in milliseconds (default: unlimited).
 
+`executor` Sets the thread executor.
+
 `redirect-policy` Sets the redirect policy.
 
   - `:never` (default) Never follow redirects.

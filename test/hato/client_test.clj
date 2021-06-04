@@ -6,6 +6,7 @@
             [org.httpkit.server :as http-kit]
             [cheshire.core :as json]
             [cognitect.transit :as transit]
+            [promesa.exec :as pexec]
             [ring.middleware.multipart-params])
   (:import (java.io InputStream ByteArrayOutputStream)
            (java.net ProxySelector CookieHandler CookieManager)
@@ -69,6 +70,13 @@
     (is (.isPresent (.proxy (build-http-client {:proxy :no-proxy}))))
     (is (.isPresent (.proxy (build-http-client {:proxy (ProxySelector/getDefault)})))))
 
+  (testing "executor"
+    (let [executor (pexec/fixed-pool 1)
+          client (build-http-client {:executor executor})
+          stored-executor (.orElse (.executor client) nil)]
+      (is (instance? java.util.concurrent.ThreadPoolExecutor stored-executor) "executor has proper type")
+      (is (= executor stored-executor) "executor set properly")))
+
   (testing "ssl-context"
     (is (= (SSLContext/getDefault) (.sslContext (build-http-client {}))))
     (is (not= (SSLContext/getDefault) (.sslContext (build-http-client {:ssl-context {:keystore         (io/resource "keystore.p12")
@@ -92,6 +100,11 @@
       (is (= :http-2 (:version r)))
       (is (= :get (-> r :request :request-method)))
       (is (= "gzip, deflate" (get-in r [:request :headers "accept-encoding"])))))
+
+  (testing "setting executor works"
+    (let [c (build-http-client {:executor (pexec/fixed-pool 1)})
+          r (get "https://httpbin.org/get" {:http-client c})]
+      (is (= 200 (:status r)))))
 
   (testing "query encoding"
     (let [r (get "https://httpbin.org/get?foo=bar<bee")]
