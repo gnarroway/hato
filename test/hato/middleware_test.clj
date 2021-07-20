@@ -81,7 +81,7 @@
   (testing "with basic-auth option"
     (let [r ((wrap-basic-auth identity) {:basic-auth {:user "username" :pass "password"}})]
       (is (not (contains? r :basic-auth)))
-      (is (= (get-in r [:headers "authorization"]))))))
+      (is (= "Basic dXNlcm5hbWU6cGFzc3dvcmQ=" (get-in r [:headers "authorization"]))))))
 
 (deftest test-wrap-oauth
   (testing "with no oauth-token option"
@@ -215,6 +215,10 @@
     (are [input type] (= input (-> ((wrap-output-coercion (constantly {:headers {"content-type" type} :body (string->stream input)})) {:as :auto}) :body))
       "<html>Hello</html>" "text/html"
       "hello,world" "text/csv"))
+
+  (testing "leaves bodies without content-type alone"
+    (let [body (string->stream "hello")]
+      (is (= body (-> ((wrap-output-coercion (constantly {:body body})) {:as :auto}) :body)))))
 
   (testing "clojure coercions"
     (is (= {:a 1} (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "{:a 1}")})) {:as :clojure}) :body))))

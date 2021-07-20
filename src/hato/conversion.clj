@@ -38,7 +38,7 @@
                     (:content-type resp)))))
 
   ; Return strings for text, or the original result otherwise.
-  (if (= "text" (namespace content-type))
+  (if (= "text" (and content-type (namespace content-type)))
     (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")]
       (slurp (:body resp) :encoding charset))
     (:body resp)))
