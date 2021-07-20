@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file. This change
 ### Fixed
 - Handle missing content-type header in response - thanks @oliyh (#33)
 
+### Added
+- Expose executor configuration - thanks @furiel (#31)
+
 ## [0.8.1]
 ### Fixed
 - Automatic body decompressions should work with mixed casing content-encoding - thanks @vincentjames501 (#28)
