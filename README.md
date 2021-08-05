@@ -21,12 +21,6 @@ Please try it out and raise any issues you may find.
 
 hato requires JDK 11 and above. If you are running an older version of Java, please look at [clj-http](https://github.com/dakrone/clj-http).
 
-For Leinengen, add this to your project.clj
-
-```clojure
-[hato "0.8.2"]
-```
-
 ## Quickstart
 
 The main client is available in `hato.client`.
