@@ -57,8 +57,8 @@ This can be done with `build-http-client`:
 
 ```clojure
 ; Build the client
-(def c (hato/build-http-client {:connect-timeout 10000
-                                :redirect-policy :always}))
+(def c (hc/build-http-client {:connect-timeout 10000
+                              :redirect-policy :always}))
 
 ; Use it for multiple requests
 (hc/get "https://httpbin.org/get" {:http-client c})
