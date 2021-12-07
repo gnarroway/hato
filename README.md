@@ -21,7 +21,7 @@ Please try it out and raise any issues you may find.
 
 hato requires JDK 11 and above. If you are running an older version of Java, please look at [clj-http](https://github.com/dakrone/clj-http).
 
-For Leinengen, add this to your project.clj
+For Leiningen, add this to your project.clj
 
 ```clojure
 [hato "0.8.2"]
@@ -537,7 +537,7 @@ can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold), to give
 ### Debugging
 
 To view the logs of the Java client, add the java option `-Djdk.httpclient.HttpClient.log=all`.
-In Leinengen, this can be done using `:jvm-opts` in `project.clj`.
+In Leiningen, this can be done using `:jvm-opts` in `project.clj`.
 
 ### Other advanced options
 
