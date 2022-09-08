@@ -223,6 +223,10 @@
   (testing "clojure coercions"
     (is (= {:a 1} (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "{:a 1}")})) {:as :clojure}) :body))))
 
+  (testing "clojure coercions considers custom data readers"
+    (binding [*data-readers* {'my/reader #'identity}]
+      (is (= {:a 1} (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "{:a #my/reader 1}")})) {:as :clojure}) :body)))))
+
   (testing "transit coercions"
     (are [expected as] (= expected (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "[\"^ \",\"~:a\",[1,2]]")})) {:as as}) :body))
       {:a [1 2]} :transit+json))

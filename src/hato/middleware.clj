@@ -188,7 +188,8 @@
 (defn coerce-clojure-body
   [_ {:keys [body] :as resp}]
   (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")]
-    (assoc resp :body (edn/read-string (slurp body :encoding charset)))))
+    (assoc resp :body (edn/read-string {:readers *data-readers*}
+                                       (slurp body :encoding charset)))))
 
 (defn coerce-transit-body
   [{:keys [transit-opts]} {:keys [body] :as resp} type]
