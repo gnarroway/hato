@@ -5,7 +5,7 @@
             [hato.middleware :refer :all])
   (:import (java.util.zip
             GZIPOutputStream)
-           (java.io ByteArrayOutputStream InputStream)))
+           (java.io ByteArrayInputStream ByteArrayOutputStream InputStream)))
 
 (deftest test-wrap-request-timing
   (let [r ((wrap-request-timing (fn [x] (Thread/sleep 1) x)) {})]
@@ -370,3 +370,16 @@
       (is (instance? InputStream (:body r)))
       (is (re-matches #"^multipart/form-data; boundary=[a-zA-Z0-9_]+$" (-> r :headers (get "content-type"))))
       (is (nil? (:multipart r))))))
+
+(deftest test-parse-transit
+  (testing "with simple transit body"
+    (let [in (ByteArrayInputStream. (transit-encode {:a "b"} :json))]
+      (is (= {:a "b"} (parse-transit in :json)))))
+
+  (testing "with non-json body"
+    (let [in (ByteArrayInputStream. (.getBytes "abc"))]
+      (is (thrown-with-msg? RuntimeException #"Unrecognized token" (parse-transit in :json)))))
+
+  (testing "with empty body"
+    (let [in (ByteArrayInputStream. (.getBytes ""))]
+      (is (nil? (parse-transit in :json))))))
