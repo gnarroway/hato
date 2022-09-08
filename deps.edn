@@ -1,1 +1,11 @@
-{:paths ["src"]}
+{:paths   ["src"]
+ :aliases {:test {:extra-paths ["test"]
+                  :extra-deps  {ring/ring-core            {:mvn/version "1.9.5"}
+                                javax.servlet/servlet-api {:mvn/version "2.5"}
+                                funcool/promesa           {:mvn/version "8.0.446"}
+                                cheshire/cheshire         {:mvn/version "5.10.2"}
+                                com.cognitect/transit-clj {:mvn/version "0.8.319"}
+                                http-kit/http-kit         {:mvn/version "2.6.0"}
+                                io.github.cognitect-labs/test-runner
+                                {:git/tag "v0.5.0" :git/sha "48c3c67"}}
+                  :exec-fn     cognitect.test-runner.api/test}}}
