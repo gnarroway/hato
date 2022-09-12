@@ -7,10 +7,11 @@
             [cheshire.core :as json]
             [cognitect.transit :as transit]
             [promesa.exec :as pexec]
-            [ring.middleware.multipart-params])
+            [ring.middleware.multipart-params]
+            [clojure.edn :as edn])
   (:import (java.io InputStream ByteArrayOutputStream)
            (java.net ProxySelector CookieHandler CookieManager)
-           (java.net.http HttpClient$Redirect HttpClient$Version HttpClient)
+           (java.net.http HttpClient$Redirect HttpClient$Version HttpClient HttpRequest$BodyPublishers)
            (java.time Duration)
            (javax.net.ssl SSLContext)
            (java.util UUID)))
@@ -38,11 +39,11 @@
   (testing "cookie-manager and cookie-policy"
     (is (.isEmpty (.cookieHandler (build-http-client {}))) "not set by default")
     (are [x] (instance? CookieHandler (-> ^HttpClient (build-http-client {:cookie-policy x}) (.cookieHandler) (.get)))
-      :none
-      :all
-      :original-server
-      :any-random-thing                              ; Invalid values are ignored, so the default :original-server will be in effect
-      )
+             :none
+             :all
+             :original-server
+             :any-random-thing                              ; Invalid values are ignored, so the default :original-server will be in effect
+             )
 
     (let [cm (CookieManager.)]
       (is (= cm (-> (build-http-client {:cookie-handler cm :cookie-policy :all}) (.cookieHandler) (.get)))
@@ -51,9 +52,9 @@
   (testing "redirect-policy"
     (is (= HttpClient$Redirect/NEVER (.followRedirects (build-http-client {}))) "NEVER by default")
     (are [expected option] (= expected (.followRedirects (build-http-client {:redirect-policy option})))
-      HttpClient$Redirect/ALWAYS :always
-      HttpClient$Redirect/NEVER :never
-      HttpClient$Redirect/NORMAL :normal)
+                           HttpClient$Redirect/ALWAYS :always
+                           HttpClient$Redirect/NEVER :never
+                           HttpClient$Redirect/NORMAL :normal)
     (is (thrown? Exception (build-http-client {:redirect-policy :not-valid-value}))))
 
   (testing "priority"
@@ -61,9 +62,9 @@
     (is (build-http-client {:priority 256}))
     (is (thrown? Exception (build-http-client {:priority :not-a-number})))
     (are [x] (thrown? Exception (build-http-client {:priority x}))
-      :not-a-number
-      0
-      257))
+             :not-a-number
+             0
+             257))
 
   (testing "proxy"
     (is (.isEmpty (.proxy (build-http-client {}))) "not set by default")
@@ -87,8 +88,8 @@
   (testing "version"
     (is (= HttpClient$Version/HTTP_2 (.version (build-http-client {}))) "HTTP_2 by default")
     (are [expected option] (= expected (.version (build-http-client {:version option})))
-      HttpClient$Version/HTTP_1_1 :http-1.1
-      HttpClient$Version/HTTP_2 :http-2)
+                           HttpClient$Version/HTTP_1_1 :http-1.1
+                           HttpClient$Version/HTTP_2 :http-2)
     (is (thrown? Exception (build-http-client {:version :not-valid-value})))))
 
 (deftest ^:integration test-basic-response
@@ -115,36 +116,35 @@
 
   (testing "verbs exist"
     (are [fn] (= 200 (:status (fn "https://httpbin.org/status/200")))
-      get
-      post
-      put
-      patch
-      delete
-      head
-      options)))
+              get
+              post
+              put
+              patch
+              delete
+              head
+              options)))
 
 (deftest ^:integration test-multipart-response
   (testing "basic post request returns response map"
     (with-server (ring.middleware.multipart-params/wrap-multipart-params
-                  (fn app [req]
-                    {:status  200
-                     :headers {"Content-Type" "application/json"}
-                     :body (let [params (clojure.walk/keywordize-keys (:multipart-params req))]
-                             (json/generate-string {:files {:file (-> params :file :tempfile slurp)}
-                                                    :form  (select-keys params [:Content/type :eggplant :title])}))}))
+                   (fn app [req]
+                     {:status  200
+                      :headers {"Content-Type" "application/json"}
+                      :body    (let [params (clojure.walk/keywordize-keys (:multipart-params req))]
+                                 (json/generate-string {:files {:file (-> params :file :tempfile slurp)}
+                                                        :form  (select-keys params [:Content/type :eggplant :title])}))}))
 
-      (let [uuid (.toString (UUID/randomUUID))
-            _ (spit (io/file ".test-data") uuid)
-            r (post "http://localhost:1234" {:as        :json
-                                             :multipart [{:name "title" :content "My Awesome Picture"}
-                                                         {:name "Content/type" :content "image/jpeg"}
-                                                         {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
-                                                         {:name "file" :content (io/file ".test-data")}]})]
+                 (let [uuid (.toString (UUID/randomUUID))
+                       _ (spit (io/file ".test-data") uuid)
+                       r (post "http://localhost:1234" {:multipart [{:name "title" :content "My Awesome Picture"}
+                                                                    {:name "Content/type" :content "image/jpeg"}
+                                                                    {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
+                                                                    {:name "file" :content (io/file ".test-data")}]})]
 
-        (is (= {:files {:file uuid}
-                :form  {:Content/type "image/jpeg"
-                        :eggplant     "Eggplants"
-                        :title        "My Awesome Picture"}} (:body r)))))))
+                   (is (= {:files {:file uuid}
+                           :form  {:Content/type "image/jpeg"
+                                   :eggplant     "Eggplants"
+                                   :title        "My Awesome Picture"}} (:body r)))))))
 
 (deftest ^:integration test-basic-response-async
   (testing "basic request returns something"
@@ -180,9 +180,20 @@
         "default callbacks does not throw if :throw-exceptions? is false")))
 
 (deftest ^:integration test-coercions
+
+  (testing "as default, fall back to the default of the muuntaja instance, here json"
+    (let [r (put "https://httpbin.org/put" {:body {:email "abc@gmail.com", :name "mkyong"}})]
+      (is (coll? (:json (:body r))))))
+
   (testing "as default"
     (let [r (get "https://httpbin.org/get")]
-      (is (string? (:body r)))))
+      (is (map? (:body r)))))
+
+  (testing "Use content-type header to encode the body, answer will be encoded as application/edn by httpbin
+  and automatically decoded."
+    (let [r (put "https://httpbin.org/put" {:body         {:email "abc@gmail.com", :name "mkyong"}
+                                            :content-type :edn})]
+      (is (coll? (edn/read-string (:data (:body r)))))))
 
   (testing "as byte array"
     (let [r (get "https://httpbin.org/get" {:as :byte-array})]
@@ -202,9 +213,7 @@
     (let [r (get "https://httpbin.org/get" {:as :auto})]
       (is (coll? (:body r)))))
 
-  (testing "as json"
-    (let [r (get "https://httpbin.org/get" {:as :json})]
-      (is (coll? (:body r)))))
+
 
   (testing "large json"
     ; Ensure large json can be parsed without the stream closing prematurely.
@@ -213,9 +222,9 @@
                     :headers {"Content-Type" "application/json"}
                     :body    (json/generate-string (take 1000 (repeatedly (constantly {:a 1}))))})
 
-      (let [b (:body (get "http://localhost:1234" {:as :json}))]
-        (is (coll? b))
-        (is (= 1000 (count b))))))
+                 (let [b (:body (get "http://localhost:1234" {}))]
+                   (is (coll? b))
+                   (is (= 1000 (count b))))))
 
   (doseq [content-type ["msgpack" "json"]]
     (testing (str "decode " content-type)
@@ -227,8 +236,8 @@
                                    (transit/write (transit/writer output (keyword content-type)) body)
                                    (clojure.java.io/input-stream (.toByteArray output)))})
 
-          (let [r (get "http://localhost:1234" {:as :auto})]
-            (is (= body (:body r)))))))
+                     (let [r (get "http://localhost:1234" {:as :auto})]
+                       (is (= body (:body r)))))))
 
     (testing (str "empty stream when decoding " content-type)
       (with-server (fn app [_]
@@ -236,8 +245,56 @@
                       :headers {"Content-Type" (str "application/transit+" content-type)}
                       :body    nil})
 
-        (let [r (get "http://localhost:1234" {:as :auto})]
-          (is (nil? (:body r))))))))
+                   (let [r (get "http://localhost:1234" {:as :auto})]
+                     (is (nil? (:body r))))))))
+
+(deftest ^:integration test-request-coercions
+  (testing "as default, with no Content-Type header, use default encoder (defaults to json)"
+    (let [r (get "https://httpbin.org/anything" {:body {:a 1}})]
+      (is (= "{\"a\":1}" (:data (:body r))))))
+
+  (testing "follow Content-Type header"
+    (let [r (get "https://httpbin.org/anything" {:content-type :edn
+                                                 :body         {:a 1}})]
+      (is (= "{:a 1}" (:data (:body r))))))
+
+  (testing "do not follow Content-Type header, but use String as stated"
+    (let [r (get "https://httpbin.org/anything" {:content-type :application/xml
+                                                 :is           :string
+                                                 :body         "<a>1</a>"})]
+      (is (= "<a>1</a>" (:data (:body r))))))
+
+  (testing "do not follow Content-Type header, but use Byte-Array as stated"
+    (let [r (get "https://httpbin.org/anything" {:content-type :application/xml
+                                                 :is           :byte-array
+                                                 :body         (.getBytes "<a>1</a>" "UTF-8")})]
+      (is (= "<a>1</a>" (:data (:body r))))))
+
+  (testing "do not follow Content-Type header, but use InputStream as stated"
+    (let [r (get "https://httpbin.org/anything" {:content-type :application/xml
+                                                 :is           :stream
+                                                 :body         #(-> (.getBytes "<a>1</a>" "UTF-8")
+                                                                    (java.io.ByteArrayInputStream.))})]
+      (is (= "<a>1</a>" (:data (:body r))))))
+
+  (testing "do not follow Content-Type header, but use BodyPublisher as stated"
+    (let [r (get "https://httpbin.org/anything" {:content-type :application/xml
+                                                 :is           :body-publisher
+                                                 :body         (HttpRequest$BodyPublishers/ofString "<a>1</a>")})]
+      (is (= "<a>1</a>" (:data (:body r))))))
+
+
+
+  (testing "as stream"
+    (let [r (get "https://httpbin.org/get" {:as :stream})]
+      (is (instance? InputStream (:body r)))
+      (is (string? (-> r :body slurp)))))
+
+  (testing "as body-publisher"
+    (let [r (get "https://httpbin.org/get" {:as :string})]
+      (is (string? (:body r))))))
+
+
 
 (deftest ^:integration test-auth
   (testing "authenticator basic auth (non-preemptive) via client option"
@@ -287,30 +344,30 @@
 
     (testing "default max redirects"
       (are [status redirects] (= status (:status (get (str "https://httpbingo.org/redirect/" redirects) {:http-client {:redirect-policy :normal}})))
-        200 4
-        302 5))))
+                              200 4
+                              302 5))))
 
 (deftest ^:integration test-cookies
   (testing "no cookie manager"
-    (let [r (get "https://httpbin.org/cookies/set/moo/cow" {:as :json :http-client {:redirect-policy :always}})]
+    (let [r (get "https://httpbin.org/cookies/set/moo/cow" {:http-client {:redirect-policy :always}})]
       (is (= 200 (:status r)))
       (is (nil? (-> r :body :cookies :moo)))))
 
   (testing "with cookie manager"
-    (let [r (get "https://httpbin.org/cookies/set/moo/cow" {:as :json :http-client {:redirect-policy :always :cookie-policy :all}})]
+    (let [r (get "https://httpbin.org/cookies/set/moo/cow" {:http-client {:redirect-policy :always :cookie-policy :all}})]
       (is (= 200 (:status r)))
       (is (= "cow" (-> r :body :cookies :moo)))))
 
   (testing "persists over requests"
     (let [c (build-http-client {:redirect-policy :always :cookie-policy :all})
           _ (get "https://httpbin.org/cookies/set/moo/cow" {:http-client c})
-          r (get "https://httpbin.org/cookies" {:as :json :http-client c})]
+          r (get "https://httpbin.org/cookies" {:http-client c})]
       (is (= 200 (:status r)))
       (is (= "cow" (-> r :body :cookies :moo))))))
 
 (deftest ^:integration test-decompression
   (testing "gzip via byte array"
-    (let [r (get "https://httpbin.org/gzip" {:as :json})]
+    (let [r (get "https://httpbin.org/gzip" {})]
       (is (= 200 (:status r)))
       (is (true? (-> r :body :gzipped)))))
 
@@ -320,7 +377,7 @@
       (is (instance? InputStream (:body r)))))
 
   (testing "deflate via byte array"
-    (let [r (get "https://httpbin.org/deflate" {:as :json})]
+    (let [r (get "https://httpbin.org/deflate" {})]
       (is (= 200 (:status r)))
       (is (true? (-> r :body :deflated)))))
 
@@ -331,7 +388,7 @@
 
 (deftest ^:integration test-http2
   (testing "can make an http2 request"
-    (let [r (get "https://nghttp2.org/httpbin/get" {:as :json})]
+    (let [r (get "https://nghttp2.org/httpbin/get" {})]
       (is (= :http-2 (:version r))))))
 
 (deftest custom-middleware

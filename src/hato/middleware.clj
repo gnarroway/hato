@@ -1,26 +1,30 @@
 (ns hato.middleware
   "Adapted from https://www.github.com/dakrone/clj-http"
   (:require
-   [clojure.edn :as edn]
-   [clojure.java.io :as io]
-   [clojure.string :as str]
-   [clojure.walk :refer [prewalk]]
-   [hato.multipart :as multipart]
-   [hato.conversion :as conversion])
+    [clojure.edn :as edn]
+    [clojure.java.io :as io]
+    [clojure.string :as str]
+    [clojure.walk :refer [prewalk]]
+    [hato.multipart :as multipart]
+    [hato.conversion :as conversion]
+    [muuntaja.core :as m]
+    [hato.format.text :as format.text])
   (:import
-   (hato.conversion DefaultDecoder)
-   (java.util
-    Base64)
-   (java.io
-    InputStream
-    ByteArrayOutputStream
-    BufferedInputStream)
-   (java.net
-    URLDecoder
-    URLEncoder
-    URL)
-   (java.util.zip
-    GZIPInputStream InflaterInputStream ZipException Inflater)))
+    (hato.conversion DefaultDecoder)
+    (java.util
+      Base64)
+    (java.io
+      InputStream
+      ByteArrayOutputStream
+      BufferedInputStream)
+    (java.net
+      URLDecoder
+      URLEncoder
+      URL)
+    (java.util.zip
+      GZIPInputStream InflaterInputStream ZipException Inflater)
+    (java.net.http HttpRequest$BodyPublishers)))
+
 
 ;; Cheshire is an optional dependency, so we check for it at compile time.
 
@@ -28,7 +32,7 @@
 (def json-enabled?
   (try
     (require
-     'cheshire.core)
+      'cheshire.core)
     true
     (catch Throwable _ false)))
 
@@ -36,7 +40,7 @@
 (def transit-enabled?
   (try
     (require
-     'cognitect.transit)
+      'cognitect.transit)
     true
     (catch Throwable _ false)))
 
@@ -114,8 +118,8 @@
     (-> path-or-query
         (str/replace " " "%20")
         (str/replace
-         #"[^a-zA-Z0-9\.\-\_\~\!\$\&\'\(\)\*\+\,\;\=\:\@\/\%\?]"
-         url-encode))))
+          #"[^a-zA-Z0-9\.\-\_\~\!\$\&\'\(\)\*\+\,\;\=\:\@\/\%\?]"
+          url-encode))))
 
 (defn parse-url
   "Parse a URL string into a map of interesting parts."
@@ -134,8 +138,9 @@
 ;; Statuses for which hato will not throw an exception
 
 
-(def unexceptional-status?
-  #{200 201 202 203 204 205 206 207 300 301 302 303 304 307})
+(defn unexceptional-status? [status]
+  (or (nil? status)
+      (#{200 201 202 203 204 205 206 207 300 301 302 303 304 307} status)))
 
 (defn- exceptions-response
   [req {:keys [status] :as resp}]
@@ -160,87 +165,78 @@
      (client req #(response (exceptions-response req %)) raise))))
 
 ;; Multimethods for coercing body type to the :as key
-(defmulti coerce-response-body (fn [req _] (:as req)))
-
-(defn coerce-json-body
-  [{:keys [coerce]} {:keys [body status] :as resp} keyword?]
-  (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")
-        decode-func json-decode-stream-strict]
-    (if json-enabled?
-      (cond
-        (and (unexceptional-status? status)
-             (or (nil? coerce) (= coerce :unexceptional)))
-        (with-open [r (clojure.java.io/reader body :encoding charset)]
-          (assoc resp :body (decode-func r keyword?)))
-
-        (= coerce :always)
-        (with-open [r (clojure.java.io/reader body :encoding charset)]
-          (assoc resp :body (decode-func r keyword?)))
-
-        (and (not (unexceptional-status? status)) (= coerce :exceptional))
-        (with-open [r (clojure.java.io/reader body :encoding charset)]
-          (assoc resp :body (decode-func r keyword?)))
-
-        :else (assoc resp :body (slurp body :encoding charset)))
-
-      (assoc resp :body (slurp body :encoding charset)))))
+(defmulti coerce-response-body (fn [_ req _] (:as req)))
 
 (defn coerce-clojure-body
   [_ {:keys [body] :as resp}]
   (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")]
     (assoc resp :body (edn/read-string (slurp body :encoding charset)))))
 
-(defn coerce-transit-body
-  [{:keys [transit-opts]} {:keys [body] :as resp} type]
-  (if transit-enabled?
-    (with-open [^InputStream bs body]
-      (assoc resp :body (parse-transit bs type transit-opts)))
-
-    resp))
-
-(defmethod coerce-response-body :json [req resp]
-  (coerce-json-body req resp true))
-
-(defmethod coerce-response-body :json-strict [req resp]
-  (coerce-json-body req resp true))
-
-(defmethod coerce-response-body :json-strict-string-keys [req resp]
-  (coerce-json-body req resp false))
-
-(defmethod coerce-response-body :json-string-keys [req resp]
-  (coerce-json-body req resp false))
-
-(defmethod coerce-response-body :clojure [req resp]
+(defmethod coerce-response-body :clojure [muuntaja-instance req resp]
   (coerce-clojure-body req resp))
 
-(defmethod coerce-response-body :transit+json [req resp]
-  (coerce-transit-body req resp :json))
 
-(defmethod coerce-response-body :transit+msgpack [req resp]
-  (coerce-transit-body req resp :msgpack))
-
-(def default-decoder (DefaultDecoder. nil))
-
-(defmethod coerce-response-body :auto [req resp]
-  (let [decoder (or (:decoder req)
-                    (if (:transit-opts req)
-                      (DefaultDecoder. req)
-                      default-decoder))]
-    (assoc resp :body (conversion/-decode decoder resp))))
-
-(defmethod coerce-response-body :byte-array [_ resp]
+(defmethod coerce-response-body :byte-array [_ _ resp]
   (let [ba (with-open [^InputStream xin (:body resp)
                        xout (ByteArrayOutputStream.)]
              (io/copy xin xout)
              (.toByteArray xout))]
     (assoc resp :body ba)))
 
-(defmethod coerce-response-body :stream [_ resp]
+(defmethod coerce-response-body :stream [_ _ resp]
   resp)
 
-(defmethod coerce-response-body :default
-  [_ {:keys [^InputStream body] :as resp}]
+(defmethod coerce-response-body :string [_ _ {:keys [^InputStream body] :as resp}]
   (assoc resp :body (slurp body :encoding "UTF-8")))
+
+(def default-muuntaja-options
+  (-> m/default-options
+      (assoc-in [:formats "text"] format.text/generic)))
+
+(def default-muuntaja-instance (m/create default-muuntaja-options))
+
+(defn muuntaja-instance [{:keys [muuntaja]
+                          :or   {muuntaja default-muuntaja-instance}
+                          :as   req}]
+  (assoc req :muuntaja (m/create muuntaja)))
+
+(defn wrap-muuntaja
+  "Middleware wrapping muuntaja options."
+  [client]
+  (fn
+    ([req]
+     (client (muuntaja-instance req)))
+    ([req respond raise]
+     (client (muuntaja-instance req) respond raise))))
+
+
+(defn- coerce-response-body* [muuntaja-instance resp]
+  (let [decoded (m/decode-response-body muuntaja-instance resp)]
+    (assoc resp :body decoded)))
+
+(defmethod coerce-response-body :default
+  [muuntaja-instance
+   {:keys [coerce]}
+   {:keys [body status] :as resp}]
+  (try
+    (cond
+      (and (unexceptional-status? status)
+           (or (nil? coerce) (= coerce :unexceptional)))
+      (coerce-response-body* muuntaja-instance resp)
+
+      (= coerce :always)
+      (coerce-response-body* muuntaja-instance resp)
+
+      (and (not (unexceptional-status? status)) (= coerce :exceptional))
+      (coerce-response-body* muuntaja-instance resp)
+
+      :else
+      (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")]
+        (assoc resp :body (slurp body :encoding charset))))
+
+    (catch Exception e
+      (update resp
+              :hato/errors conj e))))
 
 (defn- parse-content-type
   "Parse `s` as an RFC 2616 media type."
@@ -255,10 +251,15 @@
           (into {}))}))
 
 (defn- output-coercion-response
-  [req {:keys [body] :as resp}]
+  [req {:keys [body muuntaja]
+        :or   {muuntaja default-muuntaja-instance}
+        :as   resp}]
   (if body
-    (coerce-response-body req (merge resp
-                                     (parse-content-type (-> resp :headers (get "content-type")))))
+    (coerce-response-body
+      (m/create muuntaja)
+      req
+      (merge resp
+             (parse-content-type (-> resp :headers (get "content-type")))))
     resp))
 
 (defn wrap-output-coercion
@@ -286,7 +287,7 @@
           ct (if character-encoding
                (str ctv "; charset=" character-encoding)
                ctv)]
-      (update-in req [:headers] assoc "content-type" ct))
+      (update-in req [:headers] assoc "Content-Type" ct))
     req))
 
 (defn wrap-content-type
@@ -298,6 +299,61 @@
      (client (content-type-request req)))
     ([req respond raise]
      (client (content-type-request req) respond raise))))
+
+
+;; Multimethods for coercing body type to the :content-type header
+(defmulti coerce-request-body (fn [muuntaja-instance req] (:is req)))
+
+(defmethod coerce-request-body :string [_ {:keys [body] :as req}]
+  ;; TODO: make sure to handle character-set information correctly.
+  ;; - Problem right now: what is correctly?
+  ;; - Is character set information handled by java.net.http in some way?
+  #_(let [^String charset (or (-> req :content-type-params :charset) "UTF-8")]
+      (assoc req :body (String. ^"[B" body charset)))
+  (assoc req :body (HttpRequest$BodyPublishers/ofString body)))
+
+(defmethod coerce-request-body :byte-array [_ {:keys [body] :as req}]
+  (assoc req :body (HttpRequest$BodyPublishers/ofByteArray body)))
+
+(defn- ^java.util.function.Function as-supplier [f]
+  (reify java.util.function.Supplier
+    (get [this]
+      (f))))
+
+(defmethod coerce-request-body :stream [_ {:keys [body] :as req}]
+  (assoc req :body (HttpRequest$BodyPublishers/ofInputStream (as-supplier body))))
+
+(defmethod coerce-request-body :body-publisher [_ {:keys [body] :as req}]
+  (assoc req :body body))
+
+(defmethod coerce-request-body :default
+  [muuntaja-instance req]
+  (let [encoded (m/encode-request-body muuntaja-instance req)]
+    (assoc req :body encoded)))
+
+(defn- request-body-coercion
+  [muuntaja-instance {:keys [body] :as req}]
+  (if body
+    (coerce-request-body muuntaja-instance req)
+    req))
+
+(defn wrap-request-body-coercion
+  "Middleware converting a request body from an object to a byte-array.
+  Defaults to a String if no :as key is specified, the `coerce-response-body`
+  multimethod may be extended to add additional coercions."
+  [client]
+  (fn
+    ([{:keys [muuntaja]
+       :or   {muuntaja default-muuntaja-instance}
+       :as   req}]
+     (client (request-body-coercion (m/create muuntaja) req)))
+    ([{:keys [muuntaja]
+       :or   {muuntaja default-muuntaja-instance}
+       :as   req} respond raise]
+     (client (request-body-coercion (m/create muuntaja) req)
+             #(respond %)
+             raise))))
+
 
 (defn- accept-request
   [{:keys [accept] :as req}]
@@ -342,10 +398,10 @@
   "Given a charset header, detect the charset, returns UTF-8 if not found."
   [content-type]
   (or
-   (when-let [found (when content-type
-                      (re-find #"(?i)charset\s*=\s*([^\s]+)" content-type))]
-     (second found))
-   "UTF-8"))
+    (when-let [found (when content-type
+                       (re-find #"(?i)charset\s*=\s*([^\s]+)" content-type))]
+      (second found))
+    "UTF-8"))
 
 (defn- multi-param-suffix [index multi-param-style]
   (case multi-param-style
@@ -358,10 +414,10 @@
             (mapcat (fn [[k v]]
                       (if (sequential? v)
                         (map-indexed
-                         #(str (URLEncoder/encode (name k) encoding)
-                               (multi-param-suffix %1 multi-param-style)
-                               "="
-                               (URLEncoder/encode (str %2) encoding)) v)
+                          #(str (URLEncoder/encode (name k) encoding)
+                                (multi-param-suffix %1 multi-param-style)
+                                "="
+                                (URLEncoder/encode (str %2) encoding)) v)
                         [(str (URLEncoder/encode (name k) encoding)
                               "="
                               (URLEncoder/encode (str v) encoding))]))
@@ -383,9 +439,9 @@
                        (str old-query-string "&" new-query-string)
                        new-query-string))
                    (generate-query-string
-                    query-params
-                    (content-type-value content-type)
-                    multi-param-style)))
+                     query-params
+                     (content-type-value content-type)
+                     multi-param-style)))
     req))
 
 (defn wrap-query-params
@@ -471,61 +527,43 @@
     ([req respond raise]
      (client (method-request req) respond raise))))
 
-(defmulti coerce-form-params
-  (fn [req] (keyword (content-type-value (:content-type req)))))
 
-(defmethod coerce-form-params :application/edn
-  [{:keys [form-params]}]
-  (pr-str form-params))
+(defn coerce-form-params [{:keys [muuntaja
+                                  content-type
+                                  multi-param-style
+                                  form-params
+                                  form-param-encoding]
+                           :or   {muuntaja default-muuntaja-instance}
+                           :as   request
+                           }]
 
-(defn- coerce-transit-form-params [type {:keys [form-params transit-opts]}]
-  (when-not transit-enabled?
-    (throw (ex-info (format (str "Can't encode form params as "
-                                 "\"application/transit+%s\". "
-                                 "Transit dependency not loaded.")
-                            (name type))
-                    {:type         :transit-not-loaded
-                     :form-params  form-params
-                     :transit-opts transit-opts
-                     :transit-type type})))
-  (transit-encode form-params type transit-opts))
+  (m/encode-request-body
+    (m/create muuntaja)
+    request))
 
-(defmethod coerce-form-params :application/transit+json [req]
-  (coerce-transit-form-params :json req))
-
-(defmethod coerce-form-params :application/transit+msgpack [req]
-  (coerce-transit-form-params :msgpack req))
-
-(defmethod coerce-form-params :application/json
-  [{:keys [form-params json-opts]}]
-  (when-not json-enabled?
-    (throw (ex-info (str "Can't encode form params as \"application/json\". "
-                         "Cheshire dependency not loaded.")
-                    {:type        :cheshire-not-loaded
-                     :form-params form-params
-                     :json-opts   json-opts})))
-  (json-encode form-params json-opts))
-
-(defmethod coerce-form-params :default [{:keys [content-type
-                                                multi-param-style
-                                                form-params
-                                                form-param-encoding]}]
-  (if form-param-encoding
-    (generate-query-string-with-encoding form-params
-                                         form-param-encoding multi-param-style)
-    (generate-query-string form-params
-                           (content-type-value content-type)
-                           multi-param-style)))
 
 (defn- form-params-request
-  [{:keys [form-params content-type request-method]
+  [{:keys [form-params content-type request-method
+           form-param-encoding multi-param-style]
     :or   {content-type :x-www-form-urlencoded}
     :as   req}]
   (if (and form-params (#{:post :put :patch :delete} request-method))
+
+
     (-> req
         (dissoc :form-params)
-        (assoc :content-type (content-type-value content-type)
-               :body (coerce-form-params req)))
+        (assoc :body form-params)
+        (assoc :content-type (content-type-value content-type))
+        (#(assoc % :body
+                   (if (= content-type :x-www-form-urlencoded)
+                     (if form-param-encoding
+                       (generate-query-string-with-encoding form-params
+                                                            form-param-encoding multi-param-style)
+                       (generate-query-string form-params
+                                              (content-type-value content-type)
+                                              multi-param-style))
+                     (coerce-form-params %))
+                   )))
     req))
 
 (defn wrap-form-params
@@ -600,9 +638,9 @@
 ;; Multimethods for Content-Encoding dispatch automatically
 ;; decompressing response bodies
 (defmulti decompress-body
-  (fn [resp]
-    (when-let [encoding (get-in resp [:headers "content-encoding"])]
-      (str/lower-case encoding))))
+          (fn [resp]
+            (when-let [encoding (get-in resp [:headers "content-encoding"])]
+              (str/lower-case encoding))))
 
 (defmethod decompress-body "gzip"
   [resp]
@@ -645,16 +683,16 @@
   [request param-key]
   (if-let [params (request param-key)]
     (assoc request param-key
-           (prewalk
-            #(if (and (vector? %) (map? (second %)))
-               (let [[fk m] %]
-                 (reduce
-                  (fn [m [sk v]]
-                    (assoc m (str (name fk) "[" (name sk) "]") v))
-                  {}
-                  m))
-               %)
-            params))
+                   (prewalk
+                     #(if (and (vector? %) (map? (second %)))
+                        (let [[fk m] %]
+                          (reduce
+                            (fn [m [sk v]]
+                              (assoc m (str (name fk) "[" (name sk) "]") v))
+                            {}
+                            m))
+                        %)
+                     params))
     request))
 
 (defn nest-params-request
@@ -664,19 +702,19 @@
              (or (some? (opt req :ignore-nested-query-string))
                  (some? (opt req :flatten-nested-form-params))))
     (throw (IllegalArgumentException.
-            (str "only :flatten-nested-keys or :ignore-nested-query-string/"
-                 ":flatten-nested-form-params may be specified, not both"))))
+             (str "only :flatten-nested-keys or :ignore-nested-query-string/"
+                  ":flatten-nested-form-params may be specified, not both"))))
   (let [form-urlencoded? (or (nil? content-type)
                              (= content-type :x-www-form-urlencoded))
         flatten-form? (opt req :flatten-nested-form-params)
         nested-keys (or flatten-nested-keys
                         (cond-> []
-                          (not (opt req :ignore-nested-query-string))
-                          (conj :query-params)
+                                (not (opt req :ignore-nested-query-string))
+                                (conj :query-params)
 
-                          (and form-urlencoded?
-                               (true? flatten-form?))
-                          (conj :form-params)))]
+                                (and form-urlencoded?
+                                     (true? flatten-form?))
+                                (conj :form-params)))]
     (reduce nest-params req nested-keys)))
 
 (defn wrap-nested-params
@@ -711,7 +749,7 @@
 (def default-middleware
   "The default list of middleware hato uses for wrapping requests."
   [wrap-request-timing
-
+   wrap-muuntaja
    wrap-query-params
    wrap-basic-auth
    wrap-oauth
@@ -725,18 +763,21 @@
    wrap-accept-encoding
    wrap-multipart
 
-   wrap-content-type
+   wrap-request-body-coercion
    wrap-form-params
    wrap-nested-params
-   wrap-method])
+   wrap-content-type
+   wrap-method
+   ])
 
 (defn wrap-request
   "Returns a batteries-included HTTP request function corresponding to the given
   core client. See default-middleware for the middleware wrappers that are used
-  by default"
+  by default, which you can enrich with your muuntaja options or instance according
+  to your needs for different content types."
   ([request]
    (wrap-request request default-middleware))
   ([request middleware]
-   (reduce (fn [req m] (m req))
+   (reduce (fn [req middleware-wrapper] (middleware-wrapper req))
            request
            middleware)))

@@ -26,16 +26,16 @@
 ;;; Decoding
 
 (defmulti decode
-  "Extensible content-type based decoder."
-  (fn [resp _] (:content-type resp)))
+          "Extensible content-type based decoder."
+          (fn [resp _] (:content-type resp)))
 
 (defmethod decode :default
   [{:keys [content-type] :as resp} _]
   ; Throw for types that we would support if dependencies existed.
   (when (#{:application/json :application/transit+json :application/transit+msgpack} content-type)
     (throw (IllegalArgumentException.
-            (format "Unable to decode content-type %s. Add optional dependencies or provide alternative decoder."
-                    (:content-type resp)))))
+             (format "Unable to decode content-type %s. Add optional dependencies or provide alternative decoder."
+                     (:content-type resp)))))
 
   ; Return strings for text, or the original result otherwise.
   (if (= "text" (and content-type (namespace content-type)))

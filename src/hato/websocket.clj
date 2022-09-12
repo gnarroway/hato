@@ -65,10 +65,10 @@
 (defn- with-headers
   ^WebSocket$Builder [builder headers]
   (reduce-kv
-   (fn [^WebSocket$Builder b ^String hk ^String hv]
-     (.header b hk hv))
-   builder
-   headers))
+    (fn [^WebSocket$Builder b ^String hk ^String hv]
+      (.header b hk hv))
+    builder
+    headers))
 
 (defn websocket*
   "Same as `websocket` but take all arguments as a single map"
@@ -78,7 +78,7 @@
            headers
            connect-timeout
            subprotocols]
-    :as opts}]
+    :as   opts}]
   (let [^HttpClient http-client (if (instance? HttpClient http-client)
                                   http-client
                                   (HttpClient/newHttpClient))
@@ -86,10 +86,10 @@
                                        listener
                                        (request->WebSocketListener opts))]
     (cond-> (.newWebSocketBuilder http-client)
-      connect-timeout    (.connectTimeout (Duration/ofMillis connect-timeout))
-      (seq subprotocols) (.subprotocols (first subprotocols) (into-array String (rest subprotocols)))
-      headers            (with-headers headers)
-      true               (.buildAsync (URI/create uri) listener))))
+            connect-timeout (.connectTimeout (Duration/ofMillis connect-timeout))
+            (seq subprotocols) (.subprotocols (first subprotocols) (into-array String (rest subprotocols)))
+            headers (with-headers headers)
+            true (.buildAsync (URI/create uri) listener))))
 
 (defn websocket
   "Builds a new WebSocket connection from a request object and returns a future connection.

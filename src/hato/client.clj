@@ -2,24 +2,24 @@
   "Core implementation of an HTTP client wrapping JDK11's java.net.http.HttpClient."
   (:refer-clojure :exclude [get])
   (:require
-   [clojure.string :as str]
-   [hato.middleware :as middleware]
-   [clojure.java.io :as io])
+    [clojure.string :as str]
+    [hato.middleware :as middleware]
+    [clojure.java.io :as io])
   (:import
-   (java.net.http
-    HttpClient$Redirect
-    HttpClient$Version
-    HttpResponse$BodyHandlers
-    HttpRequest$BodyPublisher
-    HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest HttpClient$Builder HttpRequest$Builder)
-   (java.net CookiePolicy CookieManager URI ProxySelector Authenticator PasswordAuthentication CookieHandler)
-   (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext X509TrustManager TrustManager)
-   (java.security KeyStore SecureRandom)
-   (java.time Duration)
-   (java.util.function Function Supplier)
-   (java.io File InputStream)
-   (clojure.lang ExceptionInfo)
-   (java.security.cert X509Certificate)))
+    (java.net.http
+      HttpClient$Redirect
+      HttpClient$Version
+      HttpResponse$BodyHandlers
+      HttpRequest$BodyPublisher
+      HttpRequest$BodyPublishers HttpResponse HttpClient HttpRequest HttpClient$Builder HttpRequest$Builder)
+    (java.net CookiePolicy CookieManager URI ProxySelector Authenticator PasswordAuthentication CookieHandler)
+    (javax.net.ssl KeyManagerFactory TrustManagerFactory SSLContext X509TrustManager TrustManager)
+    (java.security KeyStore SecureRandom)
+    (java.time Duration)
+    (java.util.function Function Supplier)
+    (java.io File InputStream)
+    (clojure.lang ExceptionInfo)
+    (java.security.cert X509Certificate)))
 
 (defn- ->Authenticator
   [v]
@@ -187,10 +187,10 @@
 (defn- with-headers
   ^HttpRequest$Builder [builder headers]
   (reduce-kv
-   (fn [^HttpRequest$Builder b ^String hk ^String hv]
-     (.header b hk hv))
-   builder
-   headers))
+    (fn [^HttpRequest$Builder b ^String hk ^String hv]
+      (.header b hk hv))
+    builder
+    headers))
 
 (defn- with-authenticator
   ^HttpClient$Builder [^HttpClient$Builder b a]
@@ -231,17 +231,17 @@
            ssl-parameters
            version]}]
   (cond-> (HttpClient/newBuilder)
-    connect-timeout (.connectTimeout (Duration/ofMillis connect-timeout))
-    executor (.executor executor)
-    redirect-policy (.followRedirects (->Redirect redirect-policy))
-    priority (.priority priority)
-    proxy (.proxy (->ProxySelector proxy))
-    version (.version (->Version version))
-    ssl-context (.sslContext (->SSLContext ssl-context))
-    ssl-parameters (.sslParameters ssl-parameters)
-    authenticator (with-authenticator authenticator)
-    (or cookie-handler cookie-policy) (with-cookie-handler cookie-handler cookie-policy)
-    true .build))
+          connect-timeout (.connectTimeout (Duration/ofMillis connect-timeout))
+          executor (.executor executor)
+          redirect-policy (.followRedirects (->Redirect redirect-policy))
+          priority (.priority priority)
+          proxy (.proxy (->ProxySelector proxy))
+          version (.version (->Version version))
+          ssl-context (.sslContext (->SSLContext ssl-context))
+          ssl-parameters (.sslParameters ssl-parameters)
+          authenticator (with-authenticator authenticator)
+          (or cookie-handler cookie-policy) (with-cookie-handler cookie-handler cookie-policy)
+          true .build))
 
 (defn ^HttpRequest ring-request->HttpRequest
   "Creates an HttpRequest from a ring request map.
@@ -274,19 +274,19 @@
     :or   {request-method :get}
     :as   req}]
   (cond-> (HttpRequest/newBuilder
-           (URI. (str (name scheme)
-                      "://"
-                      server-name
-                      (some->> server-port (str ":"))
-                      uri
-                      (some->> query-string (str "?")))))
-    expect-continue (.expectContinue expect-continue)
-    version (.version (->Version version))
-    headers (with-headers headers)
-    timeout (.timeout (Duration/ofMillis timeout))
-    true (-> (.method (str/upper-case (name request-method))
-                      (->BodyPublisher req))
-             .build)))
+            (URI. (str (name scheme)
+                       "://"
+                       server-name
+                       (some->> server-port (str ":"))
+                       uri
+                       (some->> query-string (str "?")))))
+          expect-continue (.expectContinue expect-continue)
+          version (.version (->Version version))
+          headers (with-headers headers)
+          timeout (.timeout (Duration/ofMillis timeout))
+          true (-> (.method (str/upper-case (name request-method))
+                            (->BodyPublisher req))
+                   .build)))
 
 (defn request*
   [{:keys [http-client async?]
@@ -297,26 +297,26 @@
     (if-not async?
       (let [resp (.send http-client http-request bh)]
         (response-map
-         {:request     req
-          :http-client http-client
-          :response    resp}))
+          {:request     req
+           :http-client http-client
+           :response    resp}))
 
       (-> (.sendAsync http-client http-request bh)
           (.thenApply
-           (reify Function
-             (apply [_ resp]
-               (respond
-                (response-map
-                 {:request     req
-                  :http-client http-client
-                  :response    resp})))))
+            (reify Function
+              (apply [_ resp]
+                (respond
+                  (response-map
+                    {:request     req
+                     :http-client http-client
+                     :response    resp})))))
           (.exceptionally
-           (reify Function
-             (apply [_ e]
-               (let [cause (.getCause ^Exception e)]
-                 (if (instance? ExceptionInfo cause)
-                   (raise cause)
-                   (raise e))))))))))
+            (reify Function
+              (apply [_ e]
+                (let [cause (.getCause ^Exception e)]
+                  (if (instance? ExceptionInfo cause)
+                    (raise cause)
+                    (raise e))))))))))
 
 (defn request
   [req & [respond raise]]
