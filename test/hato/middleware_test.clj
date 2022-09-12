@@ -1,10 +1,10 @@
 (ns hato.middleware-test
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
-            [cognitect.transit :as transit]
-            [hato.middleware :refer :all])
+            [hato.middleware :refer :all]
+            [muuntaja.core :as m])
   (:import (java.util.zip
-            GZIPOutputStream)
+             GZIPOutputStream)
            (java.io ByteArrayOutputStream InputStream)))
 
 (deftest test-wrap-request-timing
@@ -30,10 +30,10 @@
   (testing "with multi-param-style"
     (let [q {:a [1 2]}]
       (are [expected style] (= expected (:query-string ((wrap-query-params identity) {:query-params q :multi-param-style style})))
-        "a=1&a=2" nil
-        "a=1&a=2" :some-unrecognised
-        "a[0]=1&a[1]=2" :indexed
-        "a[]=1&a[]=2" :array))))
+                            "a=1&a=2" nil
+                            "a=1&a=2" :some-unrecognised
+                            "a[0]=1&a[1]=2" :indexed
+                            "a[]=1&a[]=2" :array))))
 
 (deftest test-wrap-nested-params
   (let [params {:a {:b {:c 5} :e {:f 6}}}
@@ -147,40 +147,24 @@
       (is (= "gzip, deflate" (get-in r [:headers "accept-encoding"])) "Adds request headers"))
 
     (are [response] (= "s" (-> ((wrap-decompression (constantly response)) {}) :body slurp))
-      {:body (string->stream "s")}
-      {:body (clojure.java.io/input-stream (gzip (.getBytes "s"))) :headers {"content-encoding" "gzip"}}
-      {:body (string->stream "s")}
-      {:body (clojure.java.io/input-stream (gzip (.getBytes "s"))) :headers {"content-encoding" "GZip"}}
+                    {:body (string->stream "s")}
+                    {:body (clojure.java.io/input-stream (gzip (.getBytes "s"))) :headers {"content-encoding" "gzip"}}
+                    {:body (string->stream "s")}
+                    {:body (clojure.java.io/input-stream (gzip (.getBytes "s"))) :headers {"content-encoding" "GZip"}}
                     ; TODO deflate
-      ))
+                    ))
 
   (testing "with decompress-body option"
     (let [r ((wrap-decompression identity) {:decompress-body false})]
       (is (not (contains? r :headers))))))
 
-(defrecord Point [x y])
-
-(def write-point
-  "Write a point in Transit format."
-  (transit/write-handler
-   (constantly "point")
-   (fn [point] [(:x point) (:y point)])
-   (constantly nil)))
-
-(def read-point
-  "Read a point in Transit format."
-  (transit/read-handler
-   (fn [[x y]]
-     (->Point x y))))
-
-(def transit-opts
-  "Transit read and write options."
-  {:encode {:handlers {Point write-point}}
-   :decode {:handlers {"point" read-point}}})
 
 (deftest test-wrap-output-coercion
   (testing "coerces depending on status and :coerce option"
-    (are [expected status coerce] (= expected (-> ((wrap-output-coercion (constantly {:status status :body (string->stream "{\"a\": 1}")})) {:as :json :coerce coerce}) :body))
+    (are [expected status coerce]
+      (= expected (->
+                    ((wrap-output-coercion (constantly {:status status :headers {"Content-Type" "application/json"} :body (string->stream "{\"a\": 1}")}))
+                     {:coerce coerce}) :body))
       {:a 1} 200 nil
       {:a 1} 300 nil
       "{\"a\": 1}" 400 nil
@@ -198,23 +182,17 @@
       {:a 1} 400 :exceptional
       {:a 1} 500 :exceptional))
 
-  (testing "json coercions"
-    (are [expected as] (= expected (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "{\"a\": 1}")})) {:as as}) :body))
-      {:a 1} :json
-      {:a 1} :json-strict
-      {"a" 1} :json-string-keys
-      {"a" 1} :json-strict-string-keys))
 
   (testing "auto performs content-type based decoding"
-    (are [input type] (= {:a [1 2]} (-> ((wrap-output-coercion (constantly {:headers {"content-type" type} :body (string->stream input)})) {:as :auto}) :body))
-      "{\"a\": [1, 2]}" "application/json"
-      "{:a [1 2]}" "application/edn"
-      "[\"^ \",\"~:a\",[1,2]]" "application/transit+json"))
+    (are [input type] (= {:a [1 2]} (-> ((wrap-output-coercion (constantly {:headers {"Content-Type" type} :body (string->stream input)})) {:as :auto}) :body))
+                      "{\"a\": [1, 2]}" "application/json"
+                      "{:a [1 2]}" "application/edn"
+                      "[\"^ \",\"~:a\",[1,2]]" "application/transit+json"))
 
   (testing "auto turns text/* into strings"
-    (are [input type] (= input (-> ((wrap-output-coercion (constantly {:headers {"content-type" type} :body (string->stream input)})) {:as :auto}) :body))
-      "<html>Hello</html>" "text/html"
-      "hello,world" "text/csv"))
+    (are [input type] (= input (-> ((wrap-output-coercion (constantly {:headers {"Content-Type" type} :body (string->stream input)})) {:as :auto}) :body))
+                      "<html>Hello</html>" "text/html"
+                      "hello,world" "text/csv"))
 
   (testing "leaves bodies without content-type alone"
     (let [body (string->stream "hello")]
@@ -223,18 +201,6 @@
   (testing "clojure coercions"
     (is (= {:a 1} (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "{:a 1}")})) {:as :clojure}) :body))))
 
-  (testing "transit coercions"
-    (are [expected as] (= expected (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "[\"^ \",\"~:a\",[1,2]]")})) {:as as}) :body))
-      {:a [1 2]} :transit+json))
-
-  (testing "transit coercions with transit-opts"
-    (are [as] (= {:point (Point. 1 2)} (-> ((wrap-output-coercion (constantly {:status 200
-                                                                               :headers {"content-type" "application/transit+json"}
-                                                                               :body   (string->stream "[\"^ \",\"~:point\",[\"~#point\",[1,2]]]")}))
-                                            {:as           as
-                                             :transit-opts transit-opts}) :body))
-      :transit+json
-      :auto))
 
   (testing "string coercions"
     (is (= "{:a 1}" (-> ((wrap-output-coercion (constantly {:status 200 :body (string->stream "{:a 1}")})) {:as :string}) :body))))
@@ -249,18 +215,18 @@
 (deftest test-wrap-exceptions
   (testing "for unexceptional status codes"
     (are [status] (= {:status status} ((wrap-exceptions (constantly {:status status})) {}))
-      200
-      300))
+                  200
+                  300))
 
   (testing "with no throw-exceptions option"
     (are [status] (thrown? Exception ((wrap-exceptions (constantly {:status status})) {}))
-      400
-      500))
+                  400
+                  500))
 
   (testing "with throw-exceptions option"
     (are [status] (= {:status status} ((wrap-exceptions (constantly {:status status})) {:throw-exceptions false}))
-      400
-      500)))
+                  400
+                  500)))
 
 (deftest test-wrap-accept
   (testing "when no accept option"
@@ -269,10 +235,10 @@
 
   (testing "with accept option"
     (are [expected accept] (= {:headers {"accept" expected}} ((wrap-accept identity) {:accept accept}))
-      "application/json" :json
-      "application/text" :text
-      "application/any-random-thing" :any-random-thing
-      "text/html" "text/html")))
+                           "application/json" :json
+                           "application/text" :text
+                           "application/any-random-thing" :any-random-thing
+                           "text/html" "text/html")))
 
 (deftest test-wrap-accept-encoding
   (testing "when no accept-encoding option"
@@ -281,8 +247,8 @@
 
   (testing "with accept-encoding option"
     (are [expected accept] (= {:headers {"accept-encoding" expected}} ((wrap-accept-encoding identity) {:accept-encoding accept}))
-      "gzip" [:gzip]
-      "gzip, deflate" ["gzip" "deflate"])))
+                           "gzip" [:gzip]
+                           "gzip, deflate" ["gzip" "deflate"])))
 
 (deftest test-wrap-content-type
   (testing "when no content-type option"
@@ -290,12 +256,12 @@
       (is (not (contains? r :headers)))))
 
   (testing "with content-type option"
-    (are [expected content-type] (= {:headers      {"content-type" expected}
+    (are [expected content-type] (= {:headers      {"Content-Type" expected}
                                      :content-type content-type} ((wrap-content-type identity) {:content-type content-type}))
-      "application/json" :json
-      "application/text" :text
-      "application/any-random-thing" :any-random-thing
-      "text/html" "text/html")))
+                                 "application/json" :json
+                                 "application/text" :text
+                                 "application/any-random-thing" :any-random-thing
+                                 "text/html" "text/html")))
 
 (deftest test-wrap-form-params
   (testing "when no form-params option"
@@ -303,33 +269,32 @@
       (is (not (contains? r :body)))))
 
   (testing "with default content-type"
-    (let [r ((wrap-form-params identity) {:form-params {:moo "cow boy!"} :request-method :post})]
+    (let [r ((wrap-content-type (wrap-form-params identity)) {:form-params {:moo "cow boy!"} :request-method :post})]
       (is (= {:body           "moo=cow+boy%21"
               :content-type   "application/x-www-form-urlencoded"
               :request-method :post} r))))
 
   (testing "coercing to json"
-    (let [r ((wrap-form-params identity) {:form-params {:moo "cow boy!"} :request-method :post :content-type :json})]
+    (let [r ((wrap-content-type (wrap-form-params identity)) {:form-params {:moo "cow boy!"} :request-method :post :content-type :json})
+          r (update r :body slurp)
+          ]
       (is (= {:body           "{\"moo\":\"cow boy!\"}"
               :content-type   "application/json"
+              :headers        {"Content-Type" "application/json"}
               :request-method :post} r))))
 
   (testing "coercing to edn"
-    (let [r ((wrap-form-params identity) {:form-params {:moo "cow boy!"} :request-method :post :content-type :edn})]
+    (let [r ((wrap-content-type (wrap-form-params identity)) {:form-params {:moo "cow boy!"} :request-method :post :content-type :edn})
+          r (update r :body slurp)
+          ]
       (is (= {:body           "{:moo \"cow boy!\"}"
               :content-type   "application/edn"
+              :headers        {"Content-Type" "application/edn"}
               :request-method :post} r))))
 
   (testing "coercing to transit+json"
-    (let [r ((wrap-form-params identity) {:form-params {:moo "cow boy!"} :request-method :post :content-type :transit+json})]
-      (is (= "[\"^ \",\"~:moo\",\"cow boy!\"]" (String. ^bytes (:body r))))))
-
-  (testing "transit with transit-opts"
-    (let [r ((wrap-form-params identity) {:form-params    {:point (Point. 1 2)}
-                                          :request-method :post
-                                          :content-type   :transit+json
-                                          :transit-opts   transit-opts})]
-      (is (= "[\"^ \",\"~:point\",[\"~#point\",[1,2]]]" (String. ^bytes (:body r)))))))
+    (let [r ((wrap-content-type (wrap-form-params identity)) {:form-params {:moo "cow boy!"} :request-method :post :content-type :transit+json})]
+      (is (= "[\"^ \",\"~:moo\",\"cow boy!\"]" (slurp (:body r)))))))
 
 (deftest test-wrap-method
   (testing "when no method option"
@@ -338,9 +303,9 @@
 
   (testing "with method option"
     (are [method] (= {:request-method method} ((wrap-method identity) {:method method}))
-      :get
-      :post
-      :any-random-thing)))
+                  :get
+                  :post
+                  :any-random-thing)))
 
 (deftest test-wrap-request
   (testing "returns a response after passing through all the default middleware"
@@ -366,3 +331,10 @@
       (is (instance? InputStream (:body r)))
       (is (re-matches #"^multipart/form-data; boundary=[a-zA-Z0-9_]+$" (-> r :headers (get "content-type"))))
       (is (nil? (:multipart r))))))
+
+
+(deftest test-muuntaja
+  (testing "default implementation"
+    (let [r ((wrap-muuntaja identity) {})]
+      (is (not (nil? (:muuntaja r))))
+      (is (satisfies? m/Muuntaja (:muuntaja r))))))

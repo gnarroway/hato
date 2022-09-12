@@ -128,7 +128,7 @@ request and returns a response. Convenience wrappers are provided for the http v
 ; Convenience wrappers
 (hc/get "https://httpbin.org/get")
 (hc/get "https://httpbin.org/get" {:as :json})
-(hc/post "https://httpbin.org/post" {:body "{\"a\": 1}" :content-type :json})
+(hc/post "https://httpbin.org/post" {:body {:a 1} :content-type :json})
 ```
 
 #### request options
@@ -318,10 +318,10 @@ As a convenience, nesting can also be controlled by `:flatten-nested-keys`:
 
 ### Output coercion
 
-You can control whether you like hato to return an `InputStream` (using `:as :stream`), `byte-array` (using `:as :byte-array`) or `String` (`:as :string`) with no further coercion.
+You can control whether you like hato to return an `InputStream` (using `:as :stream`), `byte-array` (using `:as :byte-array`) or `String` (`:as :string`) with no further coercion. The default is to parse data based upon the `Content-Type` header based upon [muuuntaja](https://github.com/gorillalabs/muuntaja), by default supporting EDN, JSON, Transit, Msgpack, Text.
 
 ```clojure
-; Returns a string response
+; Returns a response parsed by muuntaja based upon content-type header.
 (hc/get "http://moo.com" {})
 
 ; Returns a byte array
@@ -330,23 +330,14 @@ You can control whether you like hato to return an `InputStream` (using `:as :st
 ; Returns an InputStream
 (hc/get "http://moo.com" {:as :stream})
 
-; Coerces clojure strings
+; Coerces clojure strings (shouldn't be necessary as application/edn content type will be automatically converted)
 (hc/get "http://moo.com" {:as :clojure})
 
-; Coerces transit. Requires optional dependency com.cognitect/transit-clj.
-(hc/get "http://moo.com" {:as :transit+json})
-(hc/get "http://moo.com" {:as :transit+msgpack})
-
-; Coerces JSON strings into clojure data structure
-; Requires optional dependency cheshire
-(hc/get "http://moo.com" {:as :json})
-(hc/get "http://moo.com" {:as :json-string-keys})
-
 ; Coerce responses with exceptional status codes
-(hc/get "http://moo.com" {:as :json :coerce :always})
+(hc/get "http://moo.com" {:coerce :always})
 ```
 
-By default, hato only coerces JSON responses for unexceptional statuses. Control this with the `:coerce` option:
+Hato only coerces (default parsed) responses for unexceptional statuses. Control this with the `:coerce` option:
 
 ```clojure
 :unexceptional ; default - only coerce response bodies for unexceptional status codes
