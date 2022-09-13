@@ -1,6 +1,17 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [Unreleased]
+### Added
+- deps.edn support - thanks @chrisbetz (#48)
+- support custom data readers when coercing Clojure body - thanks @Andre0991 (#45)
+
+### Fixed
+- don't swallow exceptions in parsing transit+json - thanks @tggreene (#47)
+
+### Changed
+- replace CircleCI with github actions
+
 ## [0.8.2]
 ### Fixed
 - Handle missing content-type header in response - thanks @oliyh (#33)
