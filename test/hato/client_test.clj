@@ -7,22 +7,22 @@
             [org.httpkit.server :as http-kit]
             [cheshire.core :as json]
             [cognitect.transit :as transit]
-            [promesa.exec :as pexec]
             [ring.middleware.multipart-params])
   (:import (java.io InputStream ByteArrayOutputStream)
            (java.net ProxySelector CookieHandler CookieManager)
            (java.net.http HttpClient$Redirect HttpClient$Version HttpClient)
            (java.time Duration)
            (javax.net.ssl SSLContext)
-           (java.util UUID)))
+           (java.util UUID)
+           (java.util.concurrent Executors)))
 
 (defmacro with-server
   "Spins up a local HTTP server with http-kit."
   [handler & body]
-  `(let [s# (http-kit/run-server ~handler {:port 1234})]
+  `(let [s# (http-kit/run-server ~handler {:port 1234 :legacy-return-value? false})]
      (try ~@body
           (finally
-            (s# :timeout 100)))))
+            (http-kit/server-stop! s#)))))
 
 (deftest test-build-http-client
   (testing "authenticator"
@@ -72,7 +72,7 @@
     (is (.isPresent (.proxy (build-http-client {:proxy (ProxySelector/getDefault)})))))
 
   (testing "executor"
-    (let [executor (pexec/fixed-pool 1)
+    (let [executor (Executors/newFixedThreadPool 1)
           client (build-http-client {:executor executor})
           stored-executor (.orElse (.executor client) nil)]
       (is (instance? java.util.concurrent.ThreadPoolExecutor stored-executor) "executor has proper type")
@@ -103,9 +103,12 @@
       (is (= "gzip, deflate" (get-in r [:request :headers "accept-encoding"])))))
 
   (testing "setting executor works"
-    (let [c (build-http-client {:executor (pexec/fixed-pool 1)})
+    (let [e (Executors/newFixedThreadPool 1)
+          c (build-http-client {:executor e})
           r (get "https://httpbin.org/get" {:http-client c})]
-      (is (= 200 (:status r)))))
+      (try
+        (is (= 200 (:status r)))
+        (finally (.shutdownNow e)))))
 
   (testing "query encoding"
     (let [r (get "https://httpbin.org/get?foo=bar<bee")]

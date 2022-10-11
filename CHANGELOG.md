@@ -1,6 +1,13 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [Unreleased]
+### Changed
+- updated various dev dependencies
+
+### Fixed
+- shutdown threadpool in custom executor test so test finishes cleanly
+
 ## [0.9.0]
 ### Added
 - deps.edn support - thanks @chrisbetz (#48)

@@ -11,10 +11,9 @@
                                     :sign-releases false}]]
   :plugins [[lein-cljfmt "0.6.4"]]
   :global-vars {*warn-on-reflection* true}
-  :profiles {:dev {:dependencies [[org.clojure/clojure "1.10.1"]
-                                  [cheshire "5.10.0"]
-                                  [ring/ring-core "1.9.0"]
+  :profiles {:dev {:dependencies [[org.clojure/clojure "1.11.1"]
+                                  [cheshire "5.10.2"]
+                                  [ring/ring-core "1.9.5"]
                                   [javax.servlet/servlet-api "2.5"]
                                   [com.cognitect/transit-clj "0.8.319"]
-                                  [funcool/promesa "6.0.0"]
-                                  [http-kit "2.3.0"]]}})
+                                  [http-kit "2.6.0"]]}})
