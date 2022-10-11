@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file. This change
 ## [Unreleased]
 ### Changed
 - updated various dev dependencies
+- run tests with deps instead of lein
 
 ### Fixed
 - shutdown threadpool in custom executor test so test finishes cleanly
