@@ -1,7 +1,7 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
-## [Unreleased]
+## [0.9.0]
 ### Added
 - deps.edn support - thanks @chrisbetz (#48)
 - support custom data readers when coercing Clojure body - thanks @Andre0991 (#45)
@@ -90,7 +90,8 @@ users to make their own request function from some stack of middleware.
 ### Added
 - Initial release
 
-[Unreleased]: https://github.com/gnarroway/hato/compare/v0.8.2...HEAD
+[Unreleased]: https://github.com/gnarroway/hato/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/gnarroway/hato/compare/v0.8.2...0.9.0
 [0.8.2]: https://github.com/gnarroway/hato/compare/v0.8.1...0.8.2
 [0.8.1]: https://github.com/gnarroway/hato/compare/v0.8.0...0.8.1
 [0.8.0]: https://github.com/gnarroway/hato/compare/v0.7.2...0.8.0
