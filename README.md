@@ -483,7 +483,7 @@ The simplest way to get started is with the `websocket` function:
 ```clojure
 (require '[hato.websocket :as ws])
 
-(let [ws @(ws/websocket "ws://echo.websocket.org"
+(let [ws @(ws/websocket "ws://echo.websocket.events"
                         {:on-message (fn [ws msg last?]
                                        (println "Received message:" msg))
                          :on-close   (fn [ws status reason]
@@ -501,7 +501,7 @@ can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold), to give
 (require '[hato.websocket :as ws])
 (require '[manifold.deferred :as d])
 
-(-> (ws/websocket "ws://echo.websocket.org"
+(-> (ws/websocket "ws://echo.websocket.events"
                   {:on-message (fn [ws msg last?]
                                  (println "Received message:" msg))
                    :on-close   (fn [ws status reason]
@@ -514,7 +514,7 @@ can be wrapped in e.g. [manifold](https://github.com/ztellman/manifold), to give
 
 ### WebSocket options
 
-`uri` A WebSocket uri (e.g. `"ws://echo.websocket.org"`).
+`uri` A WebSocket uri (e.g. `"ws://echo.websocket.events"`).
 
 
 `opts` Additional options may be a map of any of the following keys:
