@@ -11,7 +11,8 @@
                                     :sign-releases false}]]
   :plugins [[lein-cljfmt "0.6.4"]]
   :global-vars {*warn-on-reflection* true}
-  :profiles {:dev {:dependencies [[org.clojure/clojure "1.10.1"]
+  :profiles {:dev {:dependencies [[org.clojure/clojure "1.11.1"]
+                                  [org.clojure/data.json "2.4.0"]
                                   [cheshire "5.10.0"]
                                   [ring/ring-core "1.9.0"]
                                   [javax.servlet/servlet-api "2.5"]
