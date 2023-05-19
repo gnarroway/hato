@@ -6,22 +6,28 @@
   (:import (java.io ByteArrayInputStream ByteArrayOutputStream)
            (java.nio.charset StandardCharsets)))
 
+(defn- make-test-segments
+  []
+  (spit (io/file ".test-data") "[\"hello world\"]")
+  [{:name "title" :content "My Awesome Picture"}
+   {:name "diffCs" :content "custom cs" :content-type "text/plain; charset=\"iso-8859-1\""}
+   {:name "expandedCs" :content "expanded cs" :content-type {:mime-type "text/plain" :charset StandardCharsets/US_ASCII}}
+   {:name "expandedCsStr" :content "expanded cs str" :content-type {:mime-type "text/plain" :charset "utf-8"}}
+   {:name "Content/type" :content "image/jpeg"}
+   {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
+   {:name "uri" :content (.toURI (io/file ".test-data"))}
+   {:name "url" :content (.toURL (.toURI (io/file ".test-data")))}
+   {:name "file" :content (io/file ".test-data")}
+   {:name "is" :content (ByteArrayInputStream. (.getBytes ".test-data" "UTF-8")) :file-name "data.info" :content-length (count (.getBytes ".test-data" "UTF-8"))}
+   {:name "data" :content (.getBytes "hi" "UTF-8") :content-type "text/plain" :file-name "data.txt"}
+   {:name "jsonParam" :content (io/file ".test-data") :content-type "application/json" :file-name "data.json"}])
+
 (deftest test-boundary
   (let [b (boundary)]
     (is (nil? (s/explain-data ::multipart/boundary b)))))
 
 (deftest test-body
-  (let [_ (spit (io/file ".test-data") "[\"hello world\"]")
-        ms [{:name "title" :content "My Awesome Picture"}
-            {:name "diffCs" :content "custom cs" :content-type "text/plain; charset=\"iso-8859-1\""}
-            {:name "expandedCs" :content "expanded cs" :content-type {:mime-type "text/plain" :charset StandardCharsets/US_ASCII}}
-            {:name "expandedCsStr" :content "expanded cs str" :content-type {:mime-type "text/plain" :charset "utf-8"}}
-            {:name "Content/type" :content "image/jpeg"}
-            {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
-            {:name "file" :content (io/file ".test-data")}
-            {:name "is" :content (ByteArrayInputStream. (.getBytes ".test-data" "UTF-8")) :file-name "data.info"}
-            {:name "data" :content (.getBytes "hi" "UTF-8") :content-type "text/plain" :file-name "data.txt"}
-            {:name "jsonParam" :content (io/file ".test-data") :content-type "application/json" :file-name "data.json"}]
+  (let [ms (make-test-segments)
         b (body ms "boundary")
         out-string (with-open [xin (io/input-stream b)
                                xout (ByteArrayOutputStream.)]
@@ -71,6 +77,20 @@
               "Eggplants\r\n"
 
               "--boundary\r\n"
+              "Content-Disposition: form-data; name=\"uri\"\r\n"
+              "Content-Type: application/octet-stream\r\n"
+              "Content-Transfer-Encoding: binary\r\n"
+              "\r\n"
+              "[\"hello world\"]\r\n"
+
+              "--boundary\r\n"
+              "Content-Disposition: form-data; name=\"url\"\r\n"
+              "Content-Type: application/octet-stream\r\n"
+              "Content-Transfer-Encoding: binary\r\n"
+              "\r\n"
+              "[\"hello world\"]\r\n"
+
+              "--boundary\r\n"
               "Content-Disposition: form-data; name=\"file\"; filename=\".test-data\"\r\n"
               "Content-Type: application/octet-stream\r\n"
               "Content-Transfer-Encoding: binary\r\n"
@@ -98,6 +118,30 @@
               "\r\n"
               "[\"hello world\"]\r\n"
               "--boundary--\r\n") out-string))))
+
+(deftest test-content-length
+  (testing "when all segment content lengths are known, the computed length matches the actual body length"
+    (let [ms (make-test-segments)
+          segments (raw-multipart-payload-segments ms "boundary")
+          b (body segments)
+          computed-length (content-length segments)
+          actual-length (with-open [xin  (io/input-stream b)
+                                    xout (ByteArrayOutputStream.)]
+                          (io/copy xin xout)
+                          (count (.toByteArray xout)))]
+      (is (= computed-length actual-length))))
+  (testing "when a single segment's length is unknown, computed length is -1"
+    (let [ms (concat (make-test-segments)
+                     [{:name "is" :content (ByteArrayInputStream. (.getBytes ".test-data" "UTF-8")) :file-name "data.info"}])
+          segments (raw-multipart-payload-segments ms "boundary")
+          b (body segments)
+          computed-length (content-length segments)
+          actual-length (with-open [xin  (io/input-stream b)
+                                    xout (ByteArrayOutputStream.)]
+                          (io/copy xin xout)
+                          (count (.toByteArray xout)))]
+      (is (not= computed-length actual-length))
+      (is (= computed-length -1)))))
 
 (comment
   (run-tests))

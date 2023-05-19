@@ -9,6 +9,7 @@
    [hato.conversion :as conversion])
   (:import
    (hato.conversion DefaultDecoder)
+   (java.net.http HttpRequest$BodyPublishers)
    (java.util
     Base64)
    (java.io
@@ -19,6 +20,7 @@
     URLDecoder
     URLEncoder
     URL)
+   (java.util.function Supplier)
    (java.util.zip
     GZIPInputStream InflaterInputStream ZipException Inflater)))
 
@@ -695,10 +697,18 @@
   "Adds appropriate body and header if making a multipart request."
   [{:keys [multipart] :as req}]
   (if multipart
-    (let [b (multipart/boundary)]
+    (let [b (multipart/boundary)
+          segments (multipart/raw-multipart-payload-segments multipart b)
+          input-stream (multipart/body segments)
+          content-length (multipart/content-length segments)]
       (-> req
           (dissoc :multipart)
-          (assoc :body (multipart/body multipart b))
+          (assoc :body
+                 (if (= -1 content-length)
+                   input-stream
+                   (HttpRequest$BodyPublishers/fromPublisher
+                    (HttpRequest$BodyPublishers/ofInputStream (reify Supplier (get [_] input-stream)))
+                    content-length)))
           (update :headers assoc "content-type" (str "multipart/form-data; boundary=" b))))
     req))
 
