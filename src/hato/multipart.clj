@@ -3,8 +3,10 @@
   (:refer-clojure :exclude [get])
   (:require [clojure.java.io :as io]
             [clojure.spec.alpha :as s])
-  (:import (java.io PipedOutputStream PipedInputStream File)
-           (java.nio.file Files)))
+  (:import (java.io ByteArrayInputStream File SequenceInputStream)
+           (java.nio.charset Charset StandardCharsets)
+           (java.nio.file Files)
+           (java.util Collections)))
 
 ;;; Helpers
 
@@ -21,7 +23,11 @@
   [{:keys [content content-type]}]
   (str "Content-Type: "
        (cond
-         content-type content-type
+         content-type (if (string? content-type)
+                        content-type
+                        (str (:mime-type content-type)
+                             (when-let [charset (:charset content-type)]
+                               (str "; charset=" charset))))
          (string? content) "text/plain; charset=UTF-8"
          (instance? File content) (or (Files/probeContentType (.toPath ^File content))
                                       "application/octet-stream")
@@ -33,8 +39,30 @@
     "Content-Transfer-Encoding: 8bit"
     "Content-Transfer-Encoding: binary"))
 
-(def ^:private line-break (.getBytes "\r\n"))
+(defn- charset-from-content-type
+  "Parses the charset from a content-type string. Examples:
+  text/html;charset=utf-8
+  text/html;charset=UTF-8
+  Text/HTML;Charset=\"utf-8\"
+  text/html; charset=\"utf-8\"
 
+  See https://www.rfc-editor.org/rfc/rfc7231"
+  [content-type]
+  (second (re-matches #".*charset=\s*\"?([^\";]+)\"?.*" content-type)))
+
+(defn- ^Charset charset-encoding
+  "Determines the appropriate charset to encode a string with given the supplied content-type."
+  [{:keys [content-type]}]
+  (as-> content-type $
+        (if (string? $)
+          (charset-from-content-type $)
+          (:charset $))
+        (or $ StandardCharsets/UTF_8)
+        (if (instance? String $)
+          (Charset/forName $)
+          $)))
+
+(def ^{:private true :tag String} line-break "\r\n")
 
 ;;; Exposed functions
 
@@ -55,12 +83,23 @@
        (take 30)
        (apply str "hatoBoundary")))
 
+(defmulti multipart-content->input-stream
+  (fn [content _opts]
+    (type content)))
+
+(defmethod multipart-content->input-stream String [^String content opts]
+  (ByteArrayInputStream. (.getBytes content (charset-encoding opts))))
+
+(defmethod multipart-content->input-stream :default [content _opts]
+  (io/input-stream content))
+
 (defn body
   "Returns an InputStream from the multipart inputs.
 
-  This is achieved by writing all the inputs to an output stream which is piped
-  back into an InputStream, hopefully to avoid making a copy of everything (which could
-  be the case if we read all the bytes and used a ByteArrayOutputStream instead).
+  This is achieved by combining all the inputs/parts into a new InputStream. Parts that
+  are not a string should be coercible to an InputStream via clojure.java.io/input-stream
+  or by extending `multipart-content->input-stream`. Ideally this input stream is lazy
+  for parts with contents of a File/InputStream/URL/URI/Socket/etc.
 
   Output looks something like:
 
@@ -75,25 +114,24 @@
   --hatoBoundary....--\r
   "
   [ms b]
-  (let [in-stream (PipedInputStream.)
-        out-stream (PipedOutputStream. in-stream)]
-    (.start (Thread. #(do (doseq [m ms
-                                  s [(str "--" b)
-                                     line-break
-                                     (content-disposition m)
-                                     line-break
-                                     (content-type m)
-                                     line-break
-                                     (content-transfer-encoding m)
-                                     line-break
-                                     line-break
-                                     (:content m)
-                                     line-break]]
-                            (io/copy s out-stream))
-                          (io/copy (str "--" b "--") out-stream)
-                          (io/copy line-break out-stream)
-                          (.close out-stream))))
-    in-stream))
+  (SequenceInputStream.
+   (Collections/enumeration
+    (concat (for [m ms
+                  s [(ByteArrayInputStream. (.getBytes (str "--"
+                                                            b
+                                                            line-break
+                                                            (content-disposition m)
+                                                            line-break
+                                                            (content-type m)
+                                                            line-break
+                                                            (content-transfer-encoding m)
+                                                            line-break
+                                                            line-break)
+                                                       StandardCharsets/UTF_8))
+                     (multipart-content->input-stream (:content m) m)
+                     (ByteArrayInputStream. (.getBytes line-break StandardCharsets/UTF_8))]]
+              s)
+            [(ByteArrayInputStream. (.getBytes (str "--" b "--" line-break) StandardCharsets/UTF_8))]))))
 
 (comment
   (def b (boundary))
