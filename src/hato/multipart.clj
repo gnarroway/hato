@@ -40,7 +40,7 @@
     "Content-Transfer-Encoding: 8bit"
     "Content-Transfer-Encoding: binary"))
 
-(def ^:private charset-pattern #".*(?i)charset\b=\s*\"?([^\";]+)\"?.*")
+(def ^:private charset-pattern #"(?i).*charset=\s*\"?([^\";]+)\"?.*")
 
 (defn- charset-from-content-type
   "Parses the charset from a content-type string. Examples:
