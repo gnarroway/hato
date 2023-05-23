@@ -4,7 +4,7 @@
             [clojure.spec.alpha :as s]
             [clojure.java.io :as io])
   (:import (java.io ByteArrayInputStream ByteArrayOutputStream)
-           (java.nio.charset StandardCharsets)))
+           (java.nio.charset StandardCharsets UnsupportedCharsetException)))
 
 (defn- make-test-segments
   []
@@ -142,6 +142,30 @@
                           (count (.toByteArray xout)))]
       (is (not= computed-length actual-length))
       (is (= computed-length -1)))))
+
+(deftest test-charset-encoding
+  (testing "we can properly charsets from content types given valid RFC7231 strings"
+    (are [x y] (= x (charset-encoding {:content-type y}))
+      StandardCharsets/UTF_8 "text/html;charset=utf-8"
+      StandardCharsets/UTF_8 "text/html;charset=UTF-8"
+      StandardCharsets/UTF_8 "Text/HTML;Charset=\"utf-8\""
+      StandardCharsets/UTF_8 "text/html; charset=\"utf-8\""
+      StandardCharsets/UTF_8 "text/html; CHARSET=\"utf-8\""
+      StandardCharsets/ISO_8859_1 "application/json; charset=\"iso-8859-1\""
+      StandardCharsets/ISO_8859_1 "application/json; charset=\"ISO-8859-1\""
+      StandardCharsets/UTF_16 "application/json; charset=\"utf-16\""))
+  (testing "when invalid strings or strings missing charsets are supplied, we default to UTF-8"
+    (are [x y] (= x (charset-encoding {:content-type y}))
+      StandardCharsets/UTF_8 "/shrug"
+      StandardCharsets/UTF_8 "text/html"
+      StandardCharsets/UTF_8 "Text/HTML;"))
+  (testing "when we supply a Charset, we return the same thing back"
+    (are [x y] (= x (charset-encoding {:content-type y}))
+      StandardCharsets/UTF_8 StandardCharsets/UTF_8
+      StandardCharsets/UTF_8 StandardCharsets/ISO_8859_1
+      StandardCharsets/UTF_8 StandardCharsets/UTF_16))
+  (testing "throws exception when invalid charset used"
+    (is (thrown? UnsupportedCharsetException (charset-encoding {:content-type "application/json; charset=\"dne\""})))))
 
 (comment
   (run-tests))

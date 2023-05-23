@@ -3,7 +3,7 @@
   (:refer-clojure :exclude [get])
   (:require [clojure.java.io :as io]
             [clojure.spec.alpha :as s])
-  (:import (java.io ByteArrayInputStream File InputStream SequenceInputStream)
+  (:import (java.io File InputStream SequenceInputStream)
            (java.net Socket URI URL)
            (java.nio.charset Charset StandardCharsets)
            (java.nio.file Files Path)
@@ -40,6 +40,8 @@
     "Content-Transfer-Encoding: 8bit"
     "Content-Transfer-Encoding: binary"))
 
+(def ^:private charset-pattern #".*(?i)charset\b=\s*\"?([^\";]+)\"?.*")
+
 (defn- charset-from-content-type
   "Parses the charset from a content-type string. Examples:
   text/html;charset=utf-8
@@ -49,9 +51,9 @@
 
   See https://www.rfc-editor.org/rfc/rfc7231"
   [content-type]
-  (second (re-matches #".*charset=\s*\"?([^\";]+)\"?.*" content-type)))
+  (second (re-matches charset-pattern content-type)))
 
-(defn- ^Charset charset-encoding
+(defn ^Charset charset-encoding
   "Determines the appropriate charset to encode a string with given the supplied content-type."
   [{:keys [content-type]}]
   (as-> content-type $
