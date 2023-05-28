@@ -180,9 +180,10 @@ request and returns a response. Convenience wrappers are provided for the http v
   - `:part-name` To preserve the order of entities, `:name` will be used as the part name unless `:part-name` is specified
   - `:content` The part's data. May be a `String`, `InputStream`, `Reader`, `File`, `char-array`, or a `byte-array`
   - `:file-name` The part's file name. If the `:content` is a `File`, it will use `.getName` by default but may be overridden.
-  - `:content-type` The part's content type. By default, if `:content` is a `String` it will be `text/plain; charset=UTF-8`
-                    and if `:content` is a `File` it will attempt to guess the best content type or fallback to
-                    `application/octet-stream`.
+  - `:content-type` The part's content type. The value may be a `String` such as `"text/plain; charset=utf-8"` or represented as
+    a map such as `{:mime-type "text/html"}` or `{:mime-type "text/plain" :charset "iso-8859-1"}`. If left empty, the value
+    will depend on `:content`. When `:content` is a `String`, it will be `text/plain; charset=UTF-8` and when `:content` 
+    is a `File`, it will attempt to guess the best content type or fallback to `application/octet-stream`.
 
 `headers` Map of lower case strings to header values, concatenated with ',' when multiple values for a key.
   This is presently a slight incompatibility with clj-http, which accepts keyword keys and list values.

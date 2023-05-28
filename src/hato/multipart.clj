@@ -3,8 +3,11 @@
   (:refer-clojure :exclude [get])
   (:require [clojure.java.io :as io]
             [clojure.spec.alpha :as s])
-  (:import (java.io PipedOutputStream PipedInputStream File)
-           (java.nio.file Files)))
+  (:import (java.io File InputStream SequenceInputStream)
+           (java.net Socket URI URL)
+           (java.nio.charset Charset StandardCharsets)
+           (java.nio.file Files Path)
+           (java.util Collections)))
 
 ;;; Helpers
 
@@ -21,7 +24,11 @@
   [{:keys [content content-type]}]
   (str "Content-Type: "
        (cond
-         content-type content-type
+         content-type (if (string? content-type)
+                        content-type
+                        (str (:mime-type content-type)
+                             (when-let [charset (:charset content-type)]
+                               (str "; charset=" charset))))
          (string? content) "text/plain; charset=UTF-8"
          (instance? File content) (or (Files/probeContentType (.toPath ^File content))
                                       "application/octet-stream")
@@ -33,8 +40,32 @@
     "Content-Transfer-Encoding: 8bit"
     "Content-Transfer-Encoding: binary"))
 
-(def ^:private line-break (.getBytes "\r\n"))
+(def ^:private charset-pattern #"(?i).*charset=\s*\"?([^\";]+)\"?.*")
 
+(defn- charset-from-content-type
+  "Parses the charset from a content-type string. Examples:
+  text/html;charset=utf-8
+  text/html;charset=UTF-8
+  Text/HTML;Charset=\"utf-8\"
+  text/html; charset=\"utf-8\"
+
+  See https://www.rfc-editor.org/rfc/rfc7231"
+  [content-type]
+  (second (re-matches charset-pattern content-type)))
+
+(defn ^Charset charset-encoding
+  "Determines the appropriate charset to encode a string with given the supplied content-type."
+  [{:keys [content-type]}]
+  (as-> content-type $
+        (if (string? $)
+          (charset-from-content-type $)
+          (:charset $))
+        (or $ StandardCharsets/UTF_8)
+        (if (instance? String $)
+          (Charset/forName $)
+          $)))
+
+(def ^{:private true :tag String} line-break "\r\n")
 
 ;;; Exposed functions
 
@@ -55,12 +86,94 @@
        (take 30)
        (apply str "hatoBoundary")))
 
-(defn body
-  "Returns an InputStream from the multipart inputs.
+(defprotocol MultipartParam
+  (input-stream [content opts])
+  (length [content opts]))
 
-  This is achieved by writing all the inputs to an output stream which is piped
-  back into an InputStream, hopefully to avoid making a copy of everything (which could
-  be the case if we read all the bytes and used a ByteArrayOutputStream instead).
+(extend-protocol MultipartParam
+  String
+  (input-stream [^String content opts]
+    (io/input-stream (.getBytes content (charset-encoding opts))))
+  (length [^String content opts]
+    (count (.getBytes content (charset-encoding opts))))
+
+  File
+  (input-stream [^File content _opts]
+    (io/input-stream content))
+  (length [^File content _opts]
+    (.length content))
+
+  Path
+  (input-stream [^Path content _opts]
+    (io/input-stream (.toFile content)))
+  (length [^Path content opts]
+    (length (.toFile content) opts))
+
+  InputStream
+  (input-stream [^InputStream content _opts]
+    content)
+  (length [^InputStream _content opts]
+    (or (:content-length opts) -1))
+
+  URL
+  (input-stream [^URL content _opts]
+    (io/input-stream content))
+  (length [^URL content opts]
+    (if (= "file" (.getProtocol content))
+      (length (io/file content) opts)
+      (or (:content-length opts) -1)))
+
+  URI
+  (input-stream [^URI content _opts]
+    (io/input-stream content))
+  (length [^URI content opts]
+    (length (.toURL content) opts))
+
+  Socket
+  (input-stream [^InputStream content _opts]
+    (io/input-stream content))
+  (length [^InputStream _content opts]
+    (or (:content-length opts) -1)))
+
+;; See https://clojure.atlassian.net/browse/CLJ-1381 for why these are defined separately
+
+(extend-protocol MultipartParam
+  (Class/forName "[B")
+  (input-stream [^bytes content _opts]
+    (io/input-stream content))
+  (length [^bytes content _opts]
+    (count content)))
+
+(defn raw-multipart-payload-segments
+  "Given a collection of multipart parts, return a collection of tuples containing a segment of data
+  representing the multipart body. Each tuple is the segment's content and options for the specific
+  part (if applicable). These individual segments may be used to compute the content length or construct
+  an InputStream.
+
+  By default, a part's :content type must extend the MultipartParam protocol above!"
+  [parts boundary]
+  (let [payload-end-signal (.getBytes (str "--" boundary "--" line-break) StandardCharsets/UTF_8)]
+    (concat
+     (for [part        parts
+           raw-segment [[(.getBytes (str "--"
+                                         boundary
+                                         line-break
+                                         (content-disposition part)
+                                         line-break
+                                         (content-type part)
+                                         line-break
+                                         (content-transfer-encoding part)
+                                         line-break
+                                         line-break)
+                                    StandardCharsets/UTF_8) nil]
+                        [(:content part) (dissoc part :content)]
+                        [(.getBytes line-break StandardCharsets/UTF_8) nil]]]
+       raw-segment)
+     [[payload-end-signal nil]])))
+
+(defn body
+  "Returns an InputStream from the supplied multipart parts. See raw-multipart-payload-segments
+  for more information.
 
   Output looks something like:
 
@@ -72,44 +185,47 @@
   Some Content\r
   --hatoBoundary....\r
   ...more components
-  --hatoBoundary....--\r
-  "
-  [ms b]
-  (let [in-stream (PipedInputStream.)
-        out-stream (PipedOutputStream. in-stream)]
-    (.start (Thread. #(do (doseq [m ms
-                                  s [(str "--" b)
-                                     line-break
-                                     (content-disposition m)
-                                     line-break
-                                     (content-type m)
-                                     line-break
-                                     (content-transfer-encoding m)
-                                     line-break
-                                     line-break
-                                     (:content m)
-                                     line-break]]
-                            (io/copy s out-stream))
-                          (io/copy (str "--" b "--") out-stream)
-                          (io/copy line-break out-stream)
-                          (.close out-stream))))
-    in-stream))
+  --hatoBoundary....--\r"
+  ([raw-multipart-payload-segments]
+   (->> raw-multipart-payload-segments
+        (mapv (fn [[content opts]]
+                (input-stream content opts)))
+        Collections/enumeration
+        (SequenceInputStream.)))
+  ([ms b]
+   (body (raw-multipart-payload-segments ms b))))
+
+(defn content-length
+  "Returns the content length from the supplied multipart parts. If any of the parts return a
+  content length of -1, return -1 indicating that we can't determine the appropriate size of
+  the multipart body. See raw-multipart-payload-segments for more information."
+  ([raw-multipart-payload-segments]
+   (reduce
+    (fn [acc [content opts]]
+      (let [len (length content opts)]
+        (if (= -1 len)
+          (reduced -1)
+          (+ acc len))))
+    0
+    raw-multipart-payload-segments))
+  ([ms b]
+   (content-length (raw-multipart-payload-segments ms b))))
 
 (comment
-  (def b (boundary))
-  (def ms [{:name "title" :content "My Awesome Picture"}
-           {:name "Content/type" :content "image/jpeg"}
-           {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
-           {:name "file" :content (io/file ".nrepl-port")}])
+ (def b (boundary))
+ (def ms [{:name "title" :content "My Awesome Picture"}
+          {:name "Content/type" :content "image/jpeg"}
+          {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
+          {:name "file" :content (io/file ".nrepl-port")}])
 
-  ; Create the body
-  (body ms b)
+ ; Create the body
+ (body ms b)
 
-  ; Copy to out for testing
-  (with-open [xin (io/input-stream *1)
-              xout (java.io.ByteArrayOutputStream.)]
-    (io/copy xin xout)
-    (.toByteArray xout))
+ ; Copy to out for testing
+ (with-open [xin  (io/input-stream *1)
+             xout (java.io.ByteArrayOutputStream.)]
+   (io/copy xin xout)
+   (.toByteArray xout))
 
-  ; Print as string
-  (String. *1))
+ ; Print as string
+ (String. *1))
