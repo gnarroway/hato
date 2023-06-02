@@ -349,14 +349,16 @@
                               "content-type" "application/json"}
                     :body    (json/generate-string
                               (-> (:headers req)
-                                  (select-keys ["a" "b"])
+                                  (select-keys ["a" "b" "c" "d"])
                                   ;; ring spec will take multi value headers as a comma separated string.
                                   (update "b" #(str/split % #","))))})
       (let [response (get "http://localhost:1234" {:headers {"a" "single"
-                                                             "b" ["1" "2"]}
+                                                             "b" ["1" "2"]
+                                                             "c" "1,2"
+                                                             "d" 123}
                                                    :as      :json})]
         (is (= {"content-type" "application/json"
                 "foo"          ["bar" "baz"]}
                (select-keys (:headers response) ["foo" "content-type"])))
-        (is (= {:a "single" :b ["1" "2"]}
+        (is (= {:a "single" :b ["1" "2"] :c "1,2" :d "123"}
                (:body response)))))))
