@@ -185,8 +185,8 @@ request and returns a response. Convenience wrappers are provided for the http v
     will depend on `:content`. When `:content` is a `String`, it will be `text/plain; charset=UTF-8` and when `:content` 
     is a `File`, it will attempt to guess the best content type or fallback to `application/octet-stream`.
 
-`headers` Map of lower case strings to header values, concatenated with ',' when multiple values for a key.
-  This is presently a slight incompatibility with clj-http, which accepts keyword keys and list values.
+`headers` Map of lower case strings to a header value. A header's value may be a string or a sequence of strings when 
+  there are multiple values for a given header.
 
 `basic-auth` Performs basic authentication (sending `Basic` authorization header). Accepts `{:user "user" :pass "pass"}`
   Note that basic auth can also be passed via the `url` (e.g. `http://user:pass@moo.com`)

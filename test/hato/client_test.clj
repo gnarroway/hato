@@ -1,6 +1,7 @@
 (ns hato.client-test
   (:refer-clojure :exclude [get])
-  (:require [clojure.test :refer :all]
+  (:require [clojure.string :as str]
+            [clojure.test :refer :all]
             [hato.client :refer :all]
             [clojure.java.io :as io]
             [org.httpkit.server :as http-kit]
@@ -339,3 +340,25 @@
                                   (fn [req]
                                     ::response))]})]
     (is (= ::response r))))
+
+(deftest multi-value-headers
+  (testing "We can send and receive multi-value headers"
+    (with-server (fn app [req]
+                   {:status  200
+                    :headers {"foo"          ["bar" "baz"]
+                              "content-type" "application/json"}
+                    :body    (json/generate-string
+                              (-> (:headers req)
+                                  (select-keys ["a" "b" "c" "d"])
+                                  ;; ring spec will take multi value headers as a comma separated string.
+                                  (update "b" #(str/split % #","))))})
+      (let [response (get "http://localhost:1234" {:headers {"a" "single"
+                                                             "b" ["1" "2"]
+                                                             "c" "1,2"
+                                                             "d" 123}
+                                                   :as      :json})]
+        (is (= {"content-type" "application/json"
+                "foo"          ["bar" "baz"]}
+               (select-keys (:headers response) ["foo" "content-type"])))
+        (is (= {:a "single" :b ["1" "2"] :c "1,2" :d "123"}
+               (:body response)))))))
