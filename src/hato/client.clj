@@ -187,8 +187,14 @@
 (defn- with-headers
   ^HttpRequest$Builder [builder headers]
   (reduce-kv
-   (fn [^HttpRequest$Builder b ^String hk ^String hv]
-     (.header b hk hv))
+   (fn [^HttpRequest$Builder b ^String hk hv]
+     (if (sequential? hv)
+       (reduce
+        (fn [^HttpRequest$Builder acc-b shv]
+          (.header acc-b hk (str shv)))
+        b
+        hv)
+       (.header b hk (str hv))))
    builder
    headers))
 
