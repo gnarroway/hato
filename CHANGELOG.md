@@ -1,6 +1,14 @@
 # Change Log
 All notable changes to this project will be documented in this file. This change log follows the conventions of [keepachangelog.com](http://keepachangelog.com/).
 
+## [1.0.0]
+
+### Changed
+- updated various dev dependencies
+- run tests with deps instead of lein
+- Propagate multipart exceptions and accept custom charsets - thanks @vincentjames501
+- Allow a header's value to be a seq of src to match clj-http and multi-valued header responses - thanks @vincentjames501
+
 ## [0.9.0]
 ### Added
 - deps.edn support - thanks @chrisbetz (#48)
@@ -90,17 +98,18 @@ users to make their own request function from some stack of middleware.
 ### Added
 - Initial release
 
-[Unreleased]: https://github.com/gnarroway/hato/compare/v0.9.0...HEAD
-[0.9.0]: https://github.com/gnarroway/hato/compare/v0.8.2...0.9.0
-[0.8.2]: https://github.com/gnarroway/hato/compare/v0.8.1...0.8.2
-[0.8.1]: https://github.com/gnarroway/hato/compare/v0.8.0...0.8.1
-[0.8.0]: https://github.com/gnarroway/hato/compare/v0.7.2...0.8.0
-[0.7.2]: https://github.com/gnarroway/hato/compare/v0.7.1...0.7.2
-[0.7.1]: https://github.com/gnarroway/hato/compare/v0.7.0...0.7.1
-[0.7.0]: https://github.com/gnarroway/hato/compare/v0.6.0...0.7.0
-[0.6.0]: https://github.com/gnarroway/hato/compare/v0.5.0...0.6.0
-[0.5.0]: https://github.com/gnarroway/hato/compare/v0.4.1...0.5.0
-[0.4.1]: https://github.com/gnarroway/hato/compare/v0.4.0...0.4.1
-[0.4.0]: https://github.com/gnarroway/hato/compare/v0.3.1...0.4.0
+[Unreleased]: https://github.com/gnarroway/hato/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/gnarroway/hato/compare/v0.9.0...v1.0.0
+[0.9.0]: https://github.com/gnarroway/hato/compare/v0.8.2...v0.9.0
+[0.8.2]: https://github.com/gnarroway/hato/compare/v0.8.1...v0.8.2
+[0.8.1]: https://github.com/gnarroway/hato/compare/v0.8.0...v0.8.1
+[0.8.0]: https://github.com/gnarroway/hato/compare/v0.7.2...v0.8.0
+[0.7.2]: https://github.com/gnarroway/hato/compare/v0.7.1...v0.7.2
+[0.7.1]: https://github.com/gnarroway/hato/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/gnarroway/hato/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/gnarroway/hato/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/gnarroway/hato/compare/v0.4.1...v0.5.0
+[0.4.1]: https://github.com/gnarroway/hato/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/gnarroway/hato/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/gnarroway/hato/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/gnarroway/hato/compare/v0.2.0...v0.3.0
