@@ -2,8 +2,6 @@
 
 [![Clojars Project](https://img.shields.io/clojars/v/hato.svg)](https://clojars.org/hato)
 
-[![Clojure CI](https://github.com/gnarroway/hato/actions/workflows/build-and-publish.yml/badge.svg)](https://github.com/gnarroway/hato/actions/workflows/build-and-publish.yml)
-
 An HTTP client for Clojure, wrapping JDK 11's [HttpClient](https://openjdk.java.net/groups/net/httpclient/intro.html).
 
 It supports both HTTP/1.1 and HTTP/2, with synchronous and asynchronous execution modes as well as websockets.

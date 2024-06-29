@@ -1,5 +1,5 @@
 
-(defproject hato "1.0.0"
+(defproject hato "1.1.0-SNAPSHOT"
   :description "An HTTP client for Clojure, wrapping JDK 11's HttpClient."
   :url "https://github.com/gnarroway/hato"
   :license {:name         "The MIT License"
