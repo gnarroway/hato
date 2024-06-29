@@ -172,7 +172,7 @@ request and returns a response. Convenience wrappers are provided for the http v
 
   - When unset (default), a repeating parameter `a=1&a=2&a=3`
   - `:array`, a repeating param with array suffix: `a[]=1&a[]=2&a[]=3`
-  - `:index`, a repeating param with array suffix and index: `a[0]=1&a[1]=2&a[2]=3`
+  - `:indexed`, a repeating param with array suffix and index: `a[0]=1&a[1]=2&a[2]=3`
 
 `multipart` A sequence of maps with the following keys:
 
