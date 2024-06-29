@@ -75,7 +75,7 @@
     (let [executor (pexec/fixed-pool 1)
           client (build-http-client {:executor executor})
           stored-executor (.orElse (.executor client) nil)]
-      (is (instance? java.util.concurrent.ThreadPoolExecutor stored-executor) "executor has proper type")
+      (is (instance? java.util.concurrent.Executor stored-executor) "executor has proper type")
       (is (= executor stored-executor) "executor set properly")))
 
   (testing "ssl-context"
