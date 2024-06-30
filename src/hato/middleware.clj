@@ -24,15 +24,25 @@
    (java.util.zip
     GZIPInputStream InflaterInputStream ZipException Inflater)))
 
-;; Cheshire is an optional dependency, so we check for it at compile time.
+(def ^:dynamic *json-lib* nil)
 
+(defmulti decode-json
+  (fn [[lib & _]]
+    lib))
 
-(def json-enabled?
-  (try
-    (require
-     'cheshire.core)
-    true
-    (catch Throwable _ false)))
+(defmethod decode-json :default [& _]
+  (throw (ex-info "JSON library not loaded!"
+                  {:type           :json-lib-not-loaded
+                   :json-lib-value *json-lib*})))
+
+(defmulti encode-json
+  (fn [[lib & _]]
+    lib))
+
+(defmethod encode-json :default [& _]
+  (throw (ex-info "JSON library not loaded!"
+                  {:type           :json-lib-not-loaded
+                   :json-lib-value *json-lib*})))
 
 ;; Transit is an optional dependency, so check at compile time.
 (def transit-enabled?
@@ -71,14 +81,12 @@
 (defn ^:dynamic json-encode
   "Resolve and apply cheshire's json encoding dynamically."
   [& args]
-  {:pre [json-enabled?]}
-  (apply (ns-resolve (symbol "cheshire.core") (symbol "encode")) args))
+  (encode-json (cons *json-lib* args)))
 
 (defn ^:dynamic json-decode-stream-strict
   "Resolve and apply cheshire's json decoding dynamically (with lazy parsing disabled)."
   [& args]
-  {:pre [json-enabled?]}
-  (apply (ns-resolve (symbol "cheshire.core") (symbol "parse-stream-strict")) args))
+  (decode-json (cons *json-lib* args)))
 
 ;;;
 
@@ -170,7 +178,7 @@
   [{:keys [coerce]} {:keys [body status] :as resp} keyword?]
   (let [^String charset (or (-> resp :content-type-params :charset) "UTF-8")
         decode-func json-decode-stream-strict]
-    (if json-enabled?
+    (if *json-lib*
       (cond
         (and (unexceptional-status? status)
              (or (nil? coerce) (= coerce :unexceptional)))
@@ -503,10 +511,10 @@
 
 (defmethod coerce-form-params :application/json
   [{:keys [form-params json-opts]}]
-  (when-not json-enabled?
+  (when-not *json-lib*
     (throw (ex-info (str "Can't encode form params as \"application/json\". "
-                         "Cheshire dependency not loaded.")
-                    {:type        :cheshire-not-loaded
+                         "Requires cheshire or clojure.data.json library.")
+                    {:type        :json-lib-not-loaded
                      :form-params form-params
                      :json-opts   json-opts})))
   (json-encode form-params json-opts))
