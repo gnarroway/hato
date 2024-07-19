@@ -291,7 +291,7 @@
           ct (if character-encoding
                (str ctv "; charset=" character-encoding)
                ctv)]
-      (update-in req [:headers] assoc "content-type" ct))
+      (update-in req [:headers] assoc "Content-Type" ct))
     req))
 
 (defn wrap-content-type
