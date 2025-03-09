@@ -337,10 +337,44 @@
   [method url & [opts respond raise]]
   (request (merge opts {:request-method method :url url}) respond raise))
 
-(def get (partial configure-and-execute :get))
-(def post (partial configure-and-execute :post))
-(def put (partial configure-and-execute :put))
-(def patch (partial configure-and-execute :patch))
-(def delete (partial configure-and-execute :delete))
-(def head (partial configure-and-execute :head))
-(def options (partial configure-and-execute :options))
+(def
+  ^{:arglists '([url & {:keys [accept accept-encoding content-type body as coerce query-params form-params multi-param-style multipart headers basic-auth oauth-token decompress-body? throw-exceptions? async? http-client expect-continue timeout version] :as opts}])
+    :doc "Makes an HTTP GET request."}
+  get
+  (partial configure-and-execute :get))
+
+(def
+  ^{:arglists '([url & {:keys [accept accept-encoding content-type body as coerce query-params form-params multi-param-style multipart headers basic-auth oauth-token decompress-body? throw-exceptions? async? http-client expect-continue timeout version] :as opts}])
+    :doc "Makes an HTTP POST request."}
+  post
+  (partial configure-and-execute :post))
+
+(def
+  ^{:arglists '([url & {:keys [accept accept-encoding content-type body as coerce query-params form-params multi-param-style multipart headers basic-auth oauth-token decompress-body? throw-exceptions? async? http-client expect-continue timeout version] :as opts}])
+    :doc "Makes an HTTP PUT request."}
+  put
+  (partial configure-and-execute :put))
+
+(def
+  ^{:arglists '([url & {:keys [accept accept-encoding content-type body as coerce query-params form-params multi-param-style multipart headers basic-auth oauth-token decompress-body? throw-exceptions? async? http-client expect-continue timeout version] :as opts}])
+    :doc "Makes an HTTP PATCH request."}
+  patch
+  (partial configure-and-execute :patch))
+
+(def
+  ^{:arglists '([url & {:keys [accept accept-encoding content-type body as coerce query-params form-params multi-param-style multipart headers basic-auth oauth-token decompress-body? throw-exceptions? async? http-client expect-continue timeout version] :as opts}])
+    :doc "Makes an HTTP DELETE request."}
+  delete
+  (partial configure-and-execute :delete))
+
+(def
+  ^{:arglists '([url & {:keys [accept accept-encoding content-type body as coerce query-params form-params multi-param-style multipart headers basic-auth oauth-token decompress-body? throw-exceptions? async? http-client expect-continue timeout version] :as opts}])
+    :doc "Makes an HTTP HEAD request."}
+  head
+  (partial configure-and-execute :head))
+
+(def
+  ^{:arglists '([url & {:keys [accept accept-encoding content-type body as coerce query-params form-params multi-param-style multipart headers basic-auth oauth-token decompress-body? throw-exceptions? async? http-client expect-continue timeout version] :as opts}])
+    :doc "Makes an HTTP OPTIONS request."}
+  options
+  (partial configure-and-execute :options))
