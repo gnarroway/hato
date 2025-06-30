@@ -174,15 +174,15 @@
       (cond
         (and (unexceptional-status? status)
              (or (nil? coerce) (= coerce :unexceptional)))
-        (with-open [r (clojure.java.io/reader body :encoding charset)]
+        (with-open [r (io/reader body :encoding charset)]
           (assoc resp :body (decode-func r keyword?)))
 
         (= coerce :always)
-        (with-open [r (clojure.java.io/reader body :encoding charset)]
+        (with-open [r (io/reader body :encoding charset)]
           (assoc resp :body (decode-func r keyword?)))
 
         (and (not (unexceptional-status? status)) (= coerce :exceptional))
-        (with-open [r (clojure.java.io/reader body :encoding charset)]
+        (with-open [r (io/reader body :encoding charset)]
           (assoc resp :body (decode-func r keyword?)))
 
         :else (assoc resp :body (slurp body :encoding charset)))
@@ -242,6 +242,10 @@
 
 (defmethod coerce-response-body :stream [_ resp]
   resp)
+
+(defmethod coerce-response-body :lines [_ resp]
+  (let [charset (or (-> resp :content-type-params :charset) "UTF-8")]
+    (update resp :body conversion/input-stream-lines charset)))
 
 (defmethod coerce-response-body :default
   [_ {:keys [^InputStream body] :as resp}]

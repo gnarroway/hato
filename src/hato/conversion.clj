@@ -1,6 +1,8 @@
 (ns hato.conversion
-  (:require [clojure.edn :as edn])
-  (:import (java.io InputStream)))
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io])
+  (:import (java.io BufferedReader InputStream OutputStream)
+           (java.util.stream Stream)))
 
 ;;; protocols
 
@@ -76,14 +78,40 @@
     (defmethod decode :application/transit+msgpack [resp opts]
       (parse-transit :msgpack resp opts))))
 
+(defn input-stream-lines
+  "Returns a Stream<String> lazily read by `(io/reader in)`.
+   The returned Stream, must be closed when done with it."
+  ^Stream [^InputStream in charset]
+  (let [^BufferedReader rdr (io/reader in :encoding charset)]
+    (-> (.lines rdr)
+        (.onClose ^Runnable #(.close rdr)))))
+
+(defmethod decode :text/event-stream ;; i.e. server-sent-events
+  [resp _]
+  (let [charset (or (-> resp :content-type-params :charset) "UTF-8")]
+    (-> (:body resp)
+        (input-stream-lines charset))))
+
 (defrecord DefaultDecoder [options]
   Decoder
   (-decode [_ response] (decode response options)))
 
 (comment
-  (def d (DefaultDecoder.))
-  (-decode d {:content-type :text/plain :body (clojure.java.io/input-stream (.getBytes "hello world"))})
-  (-decode d {:content-type :application/foo :body (clojure.java.io/input-stream (.getBytes "{:yo 3}"))})
-  (-decode d {:content-type :application/edn :body (clojure.java.io/input-stream (.getBytes "{:yo 3}"))})
-  (-decode d {:content-type :application/json :body (clojure.java.io/input-stream (.getBytes "{\"hello\": 2}"))})
-  (-decode d {:content-type :application/transit+json :body (clojure.java.io/input-stream (.getBytes "[\"^ \",\"~:a\",[1,2]]"))}))
+  (def d (DefaultDecoder. {}))
+  (-decode d {:content-type :text/plain :body (io/input-stream (.getBytes "hello world"))})
+  (-decode d {:content-type :application/foo :body (io/input-stream (.getBytes "{:yo 3}"))})
+  (-decode d {:content-type :application/edn :body (io/input-stream (.getBytes "{:yo 3}"))})
+  (-decode d {:content-type :application/json :body (io/input-stream (.getBytes "{\"hello\": 2}"))})
+  (-decode d {:content-type :application/transit+json :body (io/input-stream (.getBytes "[\"^ \",\"~:a\",[1,2]]"))})
+  ;; simulate event-lines arriving in a streaming fashion
+  (let [in (ring.util.io/piped-input-stream
+            (fn [^OutputStream out]
+              (dotimes [i 5]
+                (Thread/sleep (long (rand-int 2000)))
+                (.write out (.getBytes (str "{:foo " i \} \newline))))))]
+    (with-open [^Stream linez (-decode d {:content-type :text/event-stream :body in})]
+      (->> (reify java.util.function.Consumer
+             (accept [_ line]
+               (println (java.time.LocalDateTime/now) "=>" line)))
+           (.forEach linez))))
+  )
