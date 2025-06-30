@@ -149,9 +149,11 @@ request and returns a response. Convenience wrappers are provided for the http v
 
 `as` Return response body in a certain format. Valid options:
 
-  - Return an object type: `:string` (default), `:byte-array`, `:stream`,
+  - Return an object type: `:string` (default), `:byte-array`, `:stream` (_java.lang.io.InputStream_).
   - `:auto`, to automatically coerce response body based on the response (e.g. `content-type`).
     This is an alpha feature and the implementation may change.
+  - `:lines`, will give you back a **lazy** `java.util.Stream<String>` (must be closed by the caller).
+    This is very useful for (newline-delimited) server-sent-events (i.e. `text/event-stream` content-type).
   - Coerce response body with certain format: `:json`, `:json-string-keys`,
   `:clojure`, `:transit+json`, `:transit+msgpack`. JSON and transit
   coercion require optional dependencies [cheshire](https://github.com/dakrone/cheshire) (5.9.0 or later) and
